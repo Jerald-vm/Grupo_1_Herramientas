@@ -1,0 +1,499 @@
+---
+title: "Avance 2: análisis y exploración de los datos"
+subtitle: "Proyecto grupal - Turismo en Costa Rica"
+author:
+  - Felipe Pereira Fallas
+  - Kevin Arias Reyes
+  - Sebastián Mora Rojas
+  - Jerald Valverde Mora
+date: today
+lang: es
+output-dir: res
+
+# format:
+  pdf:
+    documentclass: article
+    papersize: letter
+    geometry: margin=2cm
+    toc: false
+    number-sections: true
+    colorlinks: true
+    fontsize: 12pt
+    fig-width: 6
+    fig-height: 2.8
+    fig-pos: "H"
+
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+
+library(tidyr)
+library(readxl)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+
+setwd("C:/Users/jeral/Documents/UCR/VI semestre/herramientas I/Grupo 1 herramientas")
+
+llegadas <- read_excel("data/llegadas_costarica.xlsx")
+
+vida.silvestre <- read_excel("data/visitas_areas_silvestres.xlsx")
+
+
+orden.meses <- c("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                 "Julio", "Agosto", "Setiembre",
+                 "Octubre", "Noviembre", "Diciembre")
+```
+
+
+# Descripción  de los datos
+
+Se analizaron dos bases mensuales del Instituto Costarricense de Turismo (ICT): **llegadas internacionales a Costa Rica** y **visitas a áreas silvestres protegidas**. La primera contiene el número de llegadas de turistas internacionales por año y mes; la segunda desagrega las visitas en residentes, no residentes y total. Para el análisis conjunto se utilizó el período común **2013-2024**, con 144 observaciones mensuales por serie. Se calcularon medidas descriptivas por mes —promedio, desviación estándar, coeficiente de variación, mínimo y máximo— con el fin de identificar diferencias estacionales. En ambas bases se observa mayor actividad entre diciembre y marzo y niveles más bajos durante setiembre y octubre; este patrón es más marcado en las visitas de no residentes a áreas silvestres.
+
+
+```{r}
+#| include: false
+tabla.llegadas <- llegadas %>%
+  group_by(mes) %>%
+  summarise(
+    Promedio = mean(llegadas, na.rm = TRUE),
+    Desv.Estandar = sd(llegadas, na.rm = TRUE),
+    CV = Desv.Estandar / Promedio * 100,
+    Minimo = min(llegadas, na.rm = TRUE),
+    Maximo = max(llegadas, na.rm = TRUE),
+    Rango = Maximo - Minimo,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Promedio = round(Promedio, 2),
+    Desv.Estandar = round(Desv.Estandar, 2),
+    CV = round(CV, 2)
+  )
+```
+```{r}
+kable(
+  tabla.llegadas,
+  digits = 2,
+  caption = "Resumen estadístico mensual de las llegadas internacionales a Costa Rica",
+  align = c("l", "r", "r", "r", "r", "r", "r")
+)
+```
+
+
+
+
+```{r}
+#| include: false
+tabla.vida <- vida.silvestre %>%
+  group_by(mes) %>%
+  summarise(
+    Promedio = mean(total, na.rm = TRUE),
+    Desv.Estandar = sd(total, na.rm = TRUE),
+    CV = Desv.Estandar / Promedio * 100,
+    Minimo = min(total, na.rm = TRUE),
+    Maximo = max(total, na.rm = TRUE),
+    Rango = Maximo - Minimo,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Promedio = round(Promedio, 2),
+    Desv.Estandar = round(Desv.Estandar, 2),
+    CV = round(CV, 2)
+  )
+```
+
+```{r}
+kable(
+  tabla.vida,
+  digits = 2,
+  caption = "Resumen estadístico mensual de las visitas a áreas silvestres protegidas",
+  align = c("l", "r", "r", "r", "r", "r", "r")
+)
+```
+
+
+
+# Fidelidad y consistencia de los datos
+
+Dado que las bases de datos presentan períodos de tiempo diferentes y el objetivo es realizar un análisis conjunto, se establece como período de estudio el comprendido entre 2013 y 2024, correspondiente al intervalo temporal común entre ambas bases. A partir de las comprobaciones realizadas, no se identificaron datos faltantes, registros duplicados, períodos repetidos ni inconsistencias en la suma de residentes y no residentes. Por lo tanto, ambas bases se consideran adecuadas para el análisis durante el período seleccionado.
+
+```{r}
+#| include: false
+
+str(llegadas)
+str(vida.silvestre)
+```
+
+
+```{r}
+#| include: false
+
+#Verificación de datos faltantes
+
+
+colSums(is.na(llegadas))
+colSums(is.na(vida.silvestre))
+```
+
+
+
+
+```{r}
+#| include: false
+
+# Se verifica la existencia de registros duplicados en ambas bases de datos, con el fin de identificar posibles repeticiones durante el registro de la información.
+
+sum(duplicated(llegadas))
+sum(duplicated(vida.silvestre))
+```
+
+
+
+
+
+```{r}
+#| include: false
+
+# Se verifica que no existan dos observaciones correspondientes al mismo período de tiempo
+
+sum(duplicated(llegadas[c("anio","mes")]))
+sum(duplicated(vida.silvestre[c("anio","mes")]))
+
+```
+
+
+
+
+```{r}
+#| include: false
+
+#Se determina el rango temporal de cada base de datos y se verifica que cada año contenga las 12 observaciones mensuales correspondientes.
+
+range(llegadas$anio)
+range(vida.silvestre$anio)
+table(llegadas$anio)
+table(vida.silvestre$anio)
+```
+
+
+
+
+
+```{r}
+#| include: false
+
+#Se realizan comprobaciones adicionales para verificar la consistencia de los valores registrados. Se revisan los rangos de las variables numéricas para identificar posibles valores negativos o valores que puedan resultar atípicos. Además, para la base de visitas a áreas silvestres, se verifica que el total de visitas corresponda a la suma de residentes y no residentes.
+
+range(llegadas$llegadas)
+range(vida.silvestre$residentes)
+range(vida.silvestre$no_residentes)
+sum(vida.silvestre$residentes + vida.silvestre$no_residentes != vida.silvestre $total)
+```
+
+
+
+```{r}
+#| include: false
+llegadas <- llegadas |> mutate(m = match(mes, orden.meses), t = anio * 12 + m)
+vida.silvestre <- vida.silvestre |> mutate(m = match(mes, orden.meses), t = anio * 12 + m)
+```
+
+
+```{r}
+#| include: false
+
+# intersección de ambas bases
+comp <- inner_join(llegadas, vida.silvestre, by = c("anio", "mes", "m", "t")) |> 
+  arrange(t)
+# se excluye pandemia para no contaminar
+sin_covid <- comp |> 
+  filter(!anio %in% c(2020, 2021))
+
+# indice estacional. 100 = mes promedio de su propio año
+indice <- function(df, col, anios) {
+  df |>
+    filter(anio %in% anios) |>
+    group_by(anio) |>
+    mutate(media = mean(.data[[col]])) |>
+    ungroup() |>
+    mutate(razon = .data[[col]] / media) |>
+    group_by(m) |>
+    summarise(indice = 100 * mean(razon), .groups = "drop")
+}
+
+pre  <- 2013:2019
+post <- 2022:2024
+
+ie <- bind_rows(
+  indice(llegadas, "llegadas", pre)  |> 
+    mutate(serie = "Llegadas", periodo = "2013-2019"),
+
+  indice(llegadas, "llegadas", post) |> 
+    mutate(serie = "Llegadas", periodo = "2022-2024"),
+
+  indice(vida.silvestre, "no_residentes", pre) |> 
+    mutate(serie = "Áreas: no residentes", periodo = "2013-2019"),
+
+  indice(vida.silvestre, "no_residentes", post) |> 
+    mutate(serie = "Áreas: no residentes", periodo = "2022-2024"),
+
+  indice(vida.silvestre, "residentes", pre)  |> 
+    mutate(serie = "Áreas: residentes", periodo = "2013-2019")
+) |>
+  mutate(mes = factor(orden.meses[m], levels = orden.meses))
+
+#que tan alta es la estacionalidad 
+amplitud <- function(d) max(d$indice) / min(d$indice)
+amp_lleg_pre <- amplitud(indice(llegadas, "llegadas", pre))
+amp_lleg_post <- amplitud(indice(llegadas, "llegadas", post))
+amp_nores_pre <- amplitud(indice(vida.silvestre, "no_residentes", pre))
+amp_res_pre <- amplitud(indice(vida.silvestre, "residentes", pre))
+
+#perfiles estacionales preCovid
+perfil_lleg <- indice(llegadas, "llegadas", pre)$indice
+perfil_nores <- indice(vida.silvestre, "no_residentes", pre)$indice
+perfil_res <- indice(vida.silvestre, "residentes", pre)$indice
+```
+
+```{r}
+#| include: false
+
+# residuos: quitar mes y tendencia
+residuos <- function(df, col) {
+  formula <- as.formula(paste("log(", col, ") ~ factor(m) + t"))
+  residuals(lm(formula, data = df))
+}
+# en covid y sin covid
+r_con   <- data.frame(ll = residuos(comp, "llegadas"),
+                      nr = residuos(comp, "no_residentes"),
+                      anio = comp$anio)
+r_sin   <- data.frame(ll = residuos(sin_covid, "llegadas"),
+                      nr = residuos(sin_covid, "no_residentes"),
+                      rs = residuos(sin_covid, "residentes"))
+
+# Variación interanual 
+var_ia <- comp |>
+  group_by(m) |>
+    arrange(anio, .by_group = TRUE) |>
+      mutate(g_lleg  = 100 * (llegadas / lag(llegadas) - 1),
+         g_nores = 100 * (no_residentes / lag(no_residentes) - 1)) |>
+          ungroup() |>
+            filter(!is.na(g_lleg), !is.na(g_nores))
+
+# Elasticidad   
+mod_el <- lm(log(no_residentes) ~ log(llegadas) + factor(m), data = sin_covid)
+elast  <- unname(coef(mod_el)["log(llegadas)"])
+r2_el  <- summary(mod_el)$r.squared
+
+# Tasa de penetración: % que termina visitando Refugios Silvestre
+penetracion <- comp |>
+  group_by(anio) |>
+  summarise(llegadas = sum(llegadas),
+            no_residentes = sum(no_residentes),
+            .groups = "drop") |>
+  mutate(tasa = 100 * no_residentes / llegadas)
+```
+
+```{r}
+#| include: false
+
+#Funciones aux 
+n2 <- function(x) sprintf("%.2f", x)
+n1 <- function(x) sprintf("%.1f", x)
+pp <- function(x) format(round(x), big.mark = " ", scientific = FALSE)
+```
+
+# Patrones encontrados
+
+## Estacionalidad:
+
+```{r}
+#| include: false
+#| label: fig-estacional
+#| fig-cap: "Índice estacional promedio 2013-2019."
+#| fig-width: 7
+#| fig-height: 3.6
+
+ie |>
+  filter(periodo == "2013-2019") |>
+  ggplot(aes(mes, indice, group = serie, colour = serie)) +
+  geom_hline(yintercept = 100, linetype = "dashed", colour = "grey60") +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.0) +
+  labs(x = NULL, y = "Índice", colour = NULL) +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r}
+#| include: false
+#| label: fig-residentes
+#| fig-cap: "Residentes y no residentes siguen calendarios distintos (2013-2019)."
+#| fig-width: 7
+#| fig-height: 3.2
+
+ie |>
+  filter(periodo == "2013-2019", serie != "Llegadas") |>
+  ggplot(aes(mes, indice, group = serie, colour = serie)) +
+  geom_hline(yintercept = 100, linetype = "dashed", colour = "grey60") +
+  geom_line(linewidth = 0.8) +
+  labs(x = NULL, y = "Índice", colour = NULL) +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Las llegadas internacionales muestran mayor actividad entre diciembre y marzo, y valores más bajos en setiembre y octubre. Las visitas de no residentes a áreas silvestres siguen el mismo patrón, pero con mayor variación estacional, lo que indica que el turismo de naturaleza es más sensible a la época lluviosa.
+
+
+```{r}
+
+#| label: tbl-perfiles
+#| tbl-cap: "Índice estacional de las llegadas antes y después de la pandemia."
+
+## inestabilidad estacional
+
+ie |>
+  filter(serie == "Llegadas") |>
+  select(mes, periodo, indice) |>
+  pivot_wider(names_from = periodo, values_from = indice) |>
+  mutate(Diferencia = `2022-2024` - `2013-2019`) |>
+  mutate(across(where(is.numeric), ~ round(.x, 1))) |>
+  knitr::kable()
+```
+
+
+## Tendencia y quiebre
+
+```{r}
+#| include: false
+#| label: fig-series
+#| fig-cap: "Ambas series mensuales, en índice con base en el promedio de 2019."
+#| fig-width: 7
+#| fig-height: 3.4
+
+base19 <- comp |>
+  filter(anio == 2019) |>
+  summarise(ll = mean(llegadas), nr = mean(no_residentes))
+
+comp |>
+  transmute(fecha = anio + (m - 0.5) / 12,
+            Llegadas = 100 * llegadas / base19$ll,
+            `Áreas: no residentes` = 100 * no_residentes / base19$nr) |>
+  pivot_longer(-fecha, names_to = "serie", values_to = "valor") |>
+  ggplot(aes(fecha, valor, colour = serie)) +
+  geom_line(linewidth = 0.6) +
+  labs(x = NULL, y = "Índice", colour = NULL) +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+
+## Comparación entre las dos bases
+
+Ambas series crecieron hasta 2019, disminuyeron abruptamente durante 2020-2021 y se recuperaron desde 2022. Aunque presentan una correlación alta en niveles, esta se explica principalmente por la estacionalidad y la tendencia compartidas. Por ello, las visitas a áreas silvestres no se utilizarán como predictor mensual directo de las llegadas internacionales.
+
+```{r}
+#| include: false
+#| label: cor-niveles
+# correlacion directa
+cor(comp$llegadas, comp$no_residentes)
+cor(sin_covid$llegadas, sin_covid$no_residentes)
+```
+
+
+```{r}
+#| include: false
+#| label: cor-residuos
+# Con el período de pandemia incluido
+cor(r_con$ll, r_con$nr)
+
+# Excluyendo 2020 y 2021
+cor(r_sin$ll, r_sin$nr)
+cor.test(r_sin$ll, r_sin$nr)$p.value
+```
+
+
+
+```{r}
+#| include: false
+#| label: fig-residuos
+#| fig-cap: "Desviaciones respecto a lo esperable por mes y tendencia, excluyendo 2020-2021."
+#| fig-width: 5.5
+#| fig-height: 3.4
+
+ggplot(r_sin, aes(ll, nr)) +
+  geom_hline(yintercept = 0, colour = "grey80") +
+  geom_vline(xintercept = 0, colour = "grey80") +
+  geom_point(alpha = 0.7, size = 1.4) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.6, colour = "grey30") +
+  labs(x = "Residuo de llegadas (log)", y = "Residuo de visitas de no residentes (log)") +
+  theme_minimal(base_size = 11)
+```
+
+
+
+```{r}
+#| include: false
+#| label: cor-variaciones
+cor(var_ia$g_lleg, var_ia$g_nores)
+
+var_est <- var_ia |> filter(!anio %in% c(2020, 2021, 2022))
+cor(var_est$g_lleg, var_est$g_nores)
+```
+
+
+
+```{r}
+#| include: false
+#| label: elasticidad
+summary(mod_el)$coefficients["log(llegadas)", ]
+```
+
+
+
+```{r}
+#| include: false
+#| label: tbl-penetracion
+#| tbl-cap: "Visitas de no residentes a áreas protegidas por cada 100 llegadas internacionales."
+
+penetracion |>
+  transmute(Año = anio,
+            Llegadas = pp(llegadas),
+            `Visitas de no residentes` = pp(no_residentes),
+            `Visitas por 100 llegadas` = round(tasa, 1)) |>
+  knitr::kable()
+```
+
+
+
+
+# Resumen de hallazgos y propuesta de análisis
+
+
+Se trabajó con dos bases mensuales del ICT: las **llegadas internacionales** y las **visitas a áreas silvestres protegidas** (residentes, no residentes y total). El periodo común es **2013-2024**. Ambas bases están completas, sin datos faltantes, sin registros ni periodos duplicados.
+
+Se tienen 5 hallazgos relevantes:
+
+1. **La estacionalidad domina ambas series.** La temporada alta va de diciembre a marzo y el piso está en setiembre y octubre.
+2. **La pandemia (2020-2021).** Debido a la pandemia baja la cantidad de turistas y despues de esta se recupera.
+3. **La relación mes a mes entre las bases.** La correlación en niveles es alta, pero refleja sobre todo que ambas siguen el mismo calendario y la misma tendencia. Con una elasticidad menor a 1.
+4. **Las visitas de no residentes a áreas protegidas por cada 100 llegadas casi se duplicaron en el periodo postpandemia.**
+5. **Las visitas de residentes siguen otro calendario** lo que respalda que `no_residentes` sí mide turismo extranjero.
+
+Se tienen suficientes datos pero con ciertas condiciones:
+
+- Las llegadas tienen 144 observaciones mensuales (12 años × 12 meses), 10 ciclos estacionales quitando 2020, 2021.
+- **Limitación 1:** el periodo post-pandemia solo cubre 3 años (2022-2024)..
+- **Limitación 2:** las bases no traen variables explicativas externas, como el tipo de cambio.
+- **Limitación 3:** las visitas a áreas protegidas se registran en el mismo mes que las llegadas, así que no sirven para anticiparlas.
+
+Con esto, se propone **estimar las llegadas en periodos futuros** con una serie objetivo que son las llegadas internacionales mensuales de 2013 a 2024 y teniendo a 2020-2021 como una variable indicadora, para que la pandemia no afecte la estacionalidad. Las áreas silvestres se usarían para traducir las llegadas proyectadas a **visitas de naturaleza**. Por ultimo, la predicción que se obtendrá será solo una estimación, por lo que no se debe tratar como una cifra exacta.

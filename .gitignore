@@ -1,0 +1,16 @@
+# R / RStudio 
+.Rhistory 
+.RData 
+.Rproj.user/ 
+
+# Datos confidenciales 
+  data/confidencial/ 
+  data/*.xlsx 
+
+# Credenciales 
+config/credenciales.yml 
+.Renviron 
+
+# Resultados pesados (se regeneran) 
+res/*.html
+res/*.pdf

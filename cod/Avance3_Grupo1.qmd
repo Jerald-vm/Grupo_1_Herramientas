@@ -1,0 +1,43 @@
+---
+lang: es
+format:
+  pdf:
+    documentclass: article
+    papersize: letter
+    geometry: margin=2cm
+    toc: false
+    number-sections: false
+    fontsize: 12pt
+header-includes: |
+  \usepackage{titlesec}
+  \titleformat{\section}{\normalfont\bfseries\normalsize}{}{0pt}{}
+  \titleformat{\subsection}{\normalfont\bfseries\normalsize}{}{0pt}{}
+  \titleformat{\subsubsection}{\normalfont\bfseries\normalsize}{}{0pt}{}
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+\begin{center}
+\textbf{Universidad de Costa Rica}\\
+\textbf{Curso: Herramientas de Datos I}\\[0.4em]
+\textbf{Turismo en Costa Rica}\\
+Llegadas internacionales y visitas a áreas silvestres protegidas\\[0.35em]
+\textbf{Integrantes}\\
+Felipe Pereira Fallas \quad Kevin Arias Reyes\\
+Sebastián Mora Rojas \quad Jerald Valverde Mora\\[0.35em]
+6 de noviembre de 2026
+\end{center}
+
+# Introducción
+
+Las llegadas internacionales de turistas y las visitas a áreas silvestres protegidas describen flujos distintos del turismo en Costa Rica: entradas al país y registros de uso de espacios naturales. Caracterizar cuándo aumenta o disminuye cada flujo aporta información para planificar servicios turísticos y la gestión de áreas protegidas. La comparación también tiene interés estadístico porque permite contrastar la estacionalidad y la asociación entre ambas series. Como los datos están agregados por mes, describen patrones conjuntos, pero no prueban causalidad ni identifican personas únicas detrás de cada visita.
+
+El análisis utiliza registros mensuales de llegadas internacionales y de visitas de residentes y no residentes a áreas protegidas. La base de llegadas cubre 2013–2025 y la de visitas, 2013–2024; el análisis conjunto utiliza el período común 2013–2024, equivalente a 144 meses. El código calcula índices estacionales, tendencias y variaciones interanuales, y examina la asociación entre series mediante correlaciones y modelos lineales. Algunas comparaciones distinguen los períodos 2013–2019 y 2022–2024 y excluyen 2020–2021.
+
+El repositorio atribuye ambas bases al Instituto Costarricense de Turismo (ICT). El ICT publica la serie de llegadas internacionales con información de la Dirección General de Migración y Extranjería. Para las visitas a áreas silvestres protegidas, publica la serie mensual y atribuye la fuente a la Gerencia de Áreas Silvestres Protegidas del SINAC.
+
+# Objetivo general
+
+Describir la estacionalidad y la tendencia mensual de las llegadas internacionales de turistas a Costa Rica y las visitas de residentes y no residentes a áreas silvestres protegidas durante el período común 2013–2024, y estimar su asociación mediante índices estacionales, variaciones interanuales, correlaciones y modelos lineales.

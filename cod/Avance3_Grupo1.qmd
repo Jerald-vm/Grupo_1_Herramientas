@@ -41,3 +41,22 @@ El repositorio atribuye ambas bases al Instituto Costarricense de Turismo (ICT).
 # Objetivo general
 
 Describir la estacionalidad y la tendencia mensual de las llegadas internacionales de turistas a Costa Rica y las visitas de residentes y no residentes a áreas silvestres protegidas durante el período común 2013–2024, y estimar su asociación mediante índices estacionales, variaciones interanuales, correlaciones y modelos lineales.
+
+# Metodología 
+
+Para el siguiente análisis se usarán los datos consultados del Instituto Costarricense de Turismo (ICT). En este caso se utilizarán dos documentos: indicador de visitas a Áreas Silvestres Protegidas y el Anuario Estadístico de Turismo 2025, específicamente la sección de Llegadas Internacionales de Turistas 2009-2025. 
+
+Este primer documento nos brinda información sobre sobre el número de visitas de residentes  y no residentes a las Áreas Silvestres Protegidas, dando datos detallados por cada mes de los años descritos. Por otro lado, el documento de LLegadas Internacionales de Turistas 2009-2025, de la misma manera nos da información detallada por cada mes de los años señalados de las llegadas internacionales a Costa Rica, por todas las vías, incluídas, terrestre, marítima y aérea.
+
+A continuación se procede a describir el proceso metodológico de este proyecto:
+
+## Obtención y tratamiento de los datos.
+
+La recopilación de información se realizó a partir de dos documentos PDF que contienen estadísticas sobre las visitas a áreas silvestres protegidas y las llegadas de turistas a Costa Rica. Para extraer y procesar los datos se utilizó el lenguaje de programación `R`, mediante los paquetes `pdftools`, `dplyr`, `purrr`, `tidyr`, `stringr` y `writexl`.
+
+En primera instancia, se utilizó la función `pdf_data()` para extraer los elementos textuales de las páginas seleccionadas, incluyendo sus coordenadas de ubicación. Posteriormente, se identificaron los registros correspondientes a cada mes y se reconstruyeron las filas de las tablas mediante la agrupación de elementos ubicados en posiciones verticales similares.
+
+Debido a que algunos valores numéricos se encontraban fragmentados durante la extracción, se desarrollaron funciones personalizadas para reconstruir las cifras originales. Para los datos de áreas silvestres protegidas, se utilizó la relación entre visitantes residentes, no residentes y el total. Para las llegadas de turistas, se concatenaron los bloques numéricos correspondientes a cada cifra, considerando la separación de miles presente en el documento.
+
+Finalmente, la información se organizó en dos bases de datos independientes, incorporando las variables de año y mes junto con sus respectivos indicadores. Ambas bases se exportaron a formato Excel para facilitar su posterior utilización en los procesos de exploración y análisis estadístico.
+

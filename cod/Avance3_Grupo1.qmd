@@ -60,3 +60,99 @@ Debido a que algunos valores numéricos se encontraban fragmentados durante la e
 
 Finalmente, la información se organizó en dos bases de datos independientes, incorporando las variables de año y mes junto con sus respectivos indicadores. Ambas bases se exportaron a formato Excel para facilitar su posterior utilización en los procesos de exploración y análisis estadístico.
 
+## Preparación de las series para el modelado
+
+Para el pronóstico se utilizaron las series mensuales de llegadas internacionales de turistas (enero de 2013 a diciembre de 2025, 156 observaciones) y de visitas totales a Áreas Silvestres Protegidas (enero de 2013 a diciembre de 2024, 144 observaciones). Cada serie se modeló de forma independiente y univariante, es decir, únicamente a partir de su propio comportamiento pasado: tendencia, estacionalidad y dependencia entre meses consecutivos. El análisis se implementó en `R` con los paquetes `fpp3` (que integra `tsibble`, `fable` y `feasts`), `readxl` y `readr`.
+
+Las series presentan una tendencia creciente previa a 2020, una estacionalidad marcada (temporada alta de diciembre a marzo y mínimos en setiembre y octubre) y un quiebre abrupto durante la pandemia de COVID-19. Estas características determinaron los dos pasos de preparación que se describen a continuación.
+
+### Transformación logarítmica
+
+Todos los modelos se ajustaron sobre el logaritmo natural de cada serie. Esta transformación convierte la estacionalidad proporcional (picos que crecen junto con el nivel de la serie) en una estacionalidad aditiva, estabiliza la varianza y garantiza pronósticos positivos al revertir la transformación. Los paquetes `fable` y `fabletools` revierten la transformación de forma automática y, por defecto, aplican un ajuste de sesgo para que el pronóstico puntual corresponda a la media de la distribución.
+
+En adelante, $y^*_t = \log(y_t)$ denota la serie transformada.
+
+### Tratamiento del periodo COVID-19
+
+Si los meses de pandemia se incorporaran sin tratamiento, los modelos interpretarían la caída como parte de la dinámica normal de la serie, lo que deprimiría la tendencia, distorsionaría la estacionalidad e inflaría los intervalos de predicción. Por esta razón:
+
+1. Se marcaron como faltantes los meses comprendidos entre marzo de 2020 y diciembre de 2022.
+2. Se ajustó un modelo ARIMA estacional con los datos restantes, estimado mediante el filtro de Kalman, que admite observaciones faltantes.
+3. Los meses faltantes se reemplazaron por la estimación de dicho modelo (función `interpolate()`).
+4. Los modelos de pronóstico se ajustaron sobre la serie así completada.
+
+La ventana inicia en marzo de 2020, primer mes con caída abrupta. Su fin en diciembre de 2022 es un criterio de juicio: en 2022 las llegadas aún se ubicaban cerca del 80 % del nivel de 2019, mientras que a partir de 2023 la serie parece haberse estabilizado en un nivel nuevo, por lo que esos datos se conservaron. Como consecuencia, el pronóstico describe lo esperable dada la dinámica previa a la pandemia y la recuperación observada, y no un nuevo choque.
+
+## Modelos de pronóstico utilizados
+
+Se ajustaron cuatro modelos sobre cada serie. Los tres primeros parten de supuestos distintos sobre cómo se genera la serie; el cuarto los combina.
+
+### ETS (suavizamiento exponencial con espacio de estados)
+
+El modelo ETS descompone la serie en componentes no observables (nivel, tendencia y estacionalidad) que se actualizan mes a mes otorgando mayor peso a las observaciones recientes. En su forma aditiva con tendencia y estacionalidad (Holt-Winters), con periodo estacional $m = 12$, las ecuaciones son:
+
+$$
+\begin{aligned}
+\ell_t &= \alpha\,(y^*_t - s_{t-m}) + (1-\alpha)(\ell_{t-1} + b_{t-1}) \\
+b_t &= \beta\,(\ell_t - \ell_{t-1}) + (1-\beta)\,b_{t-1} \\
+s_t &= \gamma\,(y^*_t - \ell_{t-1} - b_{t-1}) + (1-\gamma)\,s_{t-m} \\
+\hat{y}^*_{t+h} &= \ell_t + h\,b_t + s_{t+h-m(k+1)}
+\end{aligned}
+$$
+
+donde $\ell_t$, $b_t$ y $s_t$ son el nivel, la tendencia y el componente estacional, y $\alpha$, $\beta$ y $\gamma$ (entre 0 y 1) controlan la velocidad de adaptación de cada uno. Valores altos implican que el modelo «olvida» más rápido el pasado.
+
+La función `ETS()` evalúa las combinaciones posibles de error, tendencia (con o sin amortiguamiento) y estacionalidad, y selecciona la de menor criterio de información corregido (AICc). Dado que el ajuste se realiza en logaritmos, un componente estacional aditivo equivale a uno multiplicativo en la escala original. Este modelo se adapta bien a cambios graduales de nivel y de tendencia, como los ocurridos durante la recuperación postpandemia, y funciona de forma estable con pocas observaciones.
+
+### ARIMA estacional
+
+El modelo ARIMA explica cada valor a partir de los valores y errores de meses anteriores. Se denota ARIMA$(p,d,q)(P,D,Q)_{12}$, donde $d$ y $D$ son el número de diferencias regulares y estacionales necesarias para lograr estacionariedad, $p$ y $P$ los términos autorregresivos, y $q$ y $Q$ los términos de media móvil. Con el operador de rezago $B$, el modelo se expresa como:
+
+$$
+\phi(B)\,\Phi(B^{12})\,(1-B)^d\,(1-B^{12})^D\,y^*_t = c + \theta(B)\,\Theta(B^{12})\,\varepsilon_t
+$$
+
+La función `ARIMA()` aplica el algoritmo de Hyndman y Khandakar (2008): determina $d$ y $D$ mediante pruebas de raíz unitaria (KPSS y OCSB) y busca los demás órdenes con una búsqueda por pasos que minimiza el AICc. Es el enfoque estándar para series mensuales con estacionalidad y captura la inercia de corto plazo, de forma complementaria a ETS.
+
+### Regresión con tendencia y estacionalidad (TSLM)
+
+El modelo de regresión lineal ajusta una tendencia lineal en el tiempo más variables indicadoras de mes:
+
+$$
+y^*_t = \beta_0 + \beta_1\,t + \sum_{j=2}^{12}\gamma_j\,D_{j,t} + \varepsilon_t
+$$
+
+donde $t$ es el índice de tiempo y $D_{j,t}$ indica si la observación corresponde al mes $j$ (enero es la categoría de referencia). En logaritmos, la pendiente $\beta_1$ equivale a un crecimiento porcentual constante. Es el modelo más simple y transparente, con estacionalidad fija y tendencia rígida, por lo que sirve como referencia estable. Su limitación es que supone errores independientes; si los residuos presentan autocorrelación, sus intervalos de predicción resultan demasiado estrechos.
+
+### Combinación de modelos
+
+El modelo combinado es el promedio aritmético de los tres anteriores:
+
+$$
+\hat{y}^{\,comb}_{t+h} = \tfrac{1}{3}\left(\hat{y}^{ETS}_{t+h} + \hat{y}^{ARIMA}_{t+h} + \hat{y}^{TSLM}_{t+h}\right)
+$$
+
+La literatura de pronósticos señala que promediar modelos con estructuras distintas suele reducir el error frente al modelo individual promedio y protege contra la elección de un modelo inadecuado, ya que sus errores tienden a compensarse parcialmente (Bates y Granger, 1969; Clemen, 1989). El promedio simple es difícil de superar con ponderaciones estimadas, especialmente en muestras cortas.
+
+## Selección del mejor modelo
+
+La selección opera en dos niveles distintos:
+
+- **Dentro de cada familia de modelos**, las funciones `ETS()` y `ARIMA()` eligen automáticamente su especificación (componentes de ETS; órdenes $p$, $d$, $q$, $P$, $D$, $Q$ de ARIMA) mediante el AICc, que equilibra el ajuste a los datos con la complejidad del modelo.
+- **Entre las cuatro alternativas** (ETS, ARIMA, TSLM y combinado), la elección se basa en el error de pronóstico sobre datos que el modelo no utilizó para ajustarse (validación por conjunto de prueba).
+
+El procedimiento de validación consistió en:
+
+1. Reservar los últimos 24 meses de cada serie como conjunto de prueba: 2024 y 2025 para las llegadas, y 2023 y 2024 para las visitas a áreas silvestres. Estos periodos quedan fuera de la ventana COVID, por lo que se evalúan contra datos observados y no interpolados.
+2. Ajustar los cuatro modelos con los datos anteriores al conjunto de prueba.
+3. Pronosticar los 24 meses reservados y calcular los errores $e_t = y_t - \hat{y}_t$ respecto de los valores reales.
+4. Resumir los errores con tres métricas:
+
+$$
+\text{RMSE} = \sqrt{\tfrac{1}{n}\sum e_t^2}, \qquad
+\text{MAE} = \tfrac{1}{n}\sum |e_t|, \qquad
+\text{MAPE} = \tfrac{100}{n}\sum \left|\tfrac{e_t}{y_t}\right|
+$$
+
+El **criterio de selección es el menor RMSE**, ya que penaliza con mayor severidad los errores grandes, que son los más costosos al planificar. El MAE y el MAPE se reportan de forma complementaria: el primero está expresado en las mismas unidades de la serie y el segundo permite una lectura relativa. Una vez elegido el modelo, se reajustó con la serie completa y se generaron los pronósticos futuros con intervalos de predicción del 95 %.
+

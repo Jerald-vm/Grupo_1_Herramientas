@@ -40,7 +40,7 @@ El repositorio atribuye ambas bases al Instituto Costarricense de Turismo (ICT).
 
 # Objetivo general
 
-Describir la estacionalidad y la tendencia mensual de las llegadas internacionales de turistas a Costa Rica y las visitas de residentes y no residentes a áreas silvestres protegidas durante el período común 2013–2024, y estimar su asociación mediante índices estacionales, variaciones interanuales, correlaciones y modelos lineales.
+Pronosticar, para los próximos 12 meses, las llegadas mensuales de turistas internacionales a Costa Rica y las visitas totales a áreas silvestres protegidas, utilizando sus series históricas y seleccionando para cada una el modelo con menor RMSE de validación.
 
 # Metodología 
 

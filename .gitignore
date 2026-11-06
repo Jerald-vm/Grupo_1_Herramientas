@@ -1,16 +1,21 @@
-# R / RStudio 
-.Rhistory 
-.RData 
-.Rproj.user/ 
+# R / RStudio
+.Rhistory
+.RData
+.Rproj.user/
 
-# Datos confidenciales 
-  data/confidencial/ 
-  data/*.xlsx 
+# Subproductos de Quarto y LaTeX (se regeneran al renderizar)
+*.log
+*.aux
+*.tex
+*.out
+*.toc
+*.synctex.gz
+*_files/
+.quarto/
 
-# Credenciales 
-config/credenciales.yml 
-.Renviron 
+# Credenciales
+config/credenciales.yml
+.Renviron
 
-# Resultados pesados (se regeneran) 
-res/*.html
-res/*.pdf
+# NOTA: las bases de datos SI se versionan. Son datos publicos del ICT y
+# sin ellas el informe no se puede reproducir.

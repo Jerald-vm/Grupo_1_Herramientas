@@ -85,7 +85,7 @@ La ventana inicia en marzo de 2020, primer mes con caída abrupta. Su fin en dic
 
 ## Modelos de pronóstico utilizados
 
-Se ajustaron cuatro modelos sobre cada serie. Los tres primeros parten de supuestos distintos sobre cómo se genera la serie; el cuarto los combina.
+Se ajustaron cuatro modelos sobre cada serie, a los que se agrega una referencia ingenua que no compite por ser seleccionada, sino que sirve de punto de comparación. Los tres primeros modelos parten de supuestos distintos sobre cómo se genera la serie; el cuarto los combina.
 
 ### ETS (suavizamiento exponencial con espacio de estados)
 
@@ -134,12 +134,24 @@ $$
 
 La literatura de pronósticos señala que promediar modelos con estructuras distintas suele reducir el error frente al modelo individual promedio y protege contra la elección de un modelo inadecuado, ya que sus errores tienden a compensarse parcialmente (Bates y Granger, 1969; Clemen, 1989). El promedio simple es difícil de superar con ponderaciones estimadas, especialmente en muestras cortas.
 
+### Referencia ingenua estacional
+
+Como punto de comparación se incluye el método ingenuo estacional, que pronostica para cada mes el valor observado en ese mismo mes del año anterior:
+
+$$
+\hat{y}_{t+h} = y_{t+h-m\,(k+1)}, \qquad m = 12
+$$
+
+donde $k$ es el número de años completos contenidos en el horizonte $h$. No estima parámetros ni supone una forma funcional: simplemente repite el último ciclo anual observado.
+
+Su función aquí no es pronosticar, sino fijar el umbral mínimo de desempeño. En series con estacionalidad muy marcada este método resulta sorprendentemente competitivo, de modo que un modelo estadístico solo demuestra aportar valor si logra un error menor. Hyndman y Athanasopoulos (2021) recomiendan reportar siempre al menos un método de referencia de este tipo, ya que una métrica de error carece de interpretación sin un punto de comparación. Por esta razón el método ingenuo se ajusta y evalúa en las mismas condiciones que los demás, pero se excluye de la selección.
+
 ## Selección del mejor modelo
 
 La selección opera en dos niveles distintos:
 
 - **Dentro de cada familia de modelos**, las funciones `ETS()` y `ARIMA()` eligen automáticamente su especificación (componentes de ETS; órdenes $p$, $d$, $q$, $P$, $D$, $Q$ de ARIMA) mediante el AICc, que equilibra el ajuste a los datos con la complejidad del modelo.
-- **Entre las cuatro alternativas** (ETS, ARIMA, TSLM y combinado), la elección se basa en el error de pronóstico sobre datos que el modelo no utilizó para ajustarse (validación por conjunto de prueba).
+- **Entre las cuatro alternativas** (ETS, ARIMA, TSLM y combinado), la elección se basa en el error de pronóstico sobre datos que el modelo no utilizó para ajustarse (validación por conjunto de prueba). La referencia ingenua se evalúa en el mismo ejercicio, pero queda fuera de la selección: su papel es verificar que el modelo elegido aporte algo más que repetir el año anterior.
 
 El procedimiento de validación consistió en:
 
@@ -154,5 +166,5 @@ $$
 \text{MAPE} = \tfrac{100}{n}\sum \left|\tfrac{e_t}{y_t}\right|
 $$
 
-El **criterio de selección es el menor RMSE**, ya que penaliza con mayor severidad los errores grandes, que son los más costosos al planificar. El MAE y el MAPE se reportan de forma complementaria: el primero está expresado en las mismas unidades de la serie y el segundo permite una lectura relativa. Una vez elegido el modelo, se reajustó con la serie completa y se generaron los pronósticos futuros con intervalos de predicción del 95 %.
+El **criterio de selección es el menor RMSE**, ya que penaliza con mayor severidad los errores grandes, que son los más costosos al planificar. El MAE y el MAPE se reportan de forma complementaria: el primero está expresado en las mismas unidades de la serie y el segundo permite una lectura relativa. Los tres indicadores se calculan también para la referencia ingenua, de manera que el desempeño del modelo seleccionado pueda interpretarse en términos relativos y no en abstracto. Una vez elegido el modelo, se reajustó con la serie completa y se generaron los pronósticos futuros con intervalos de predicción del 95 %.
 

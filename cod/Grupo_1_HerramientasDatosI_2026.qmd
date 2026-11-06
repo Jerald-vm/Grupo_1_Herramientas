@@ -1,0 +1,836 @@
+---
+lang: es
+format:
+  pdf:
+    documentclass: article
+    papersize: letter
+    geometry: margin=2cm
+    toc: false
+    number-sections: false
+    fontsize: 12pt
+    fig-pos: "H"
+header-includes: |
+  \usepackage{titlesec}
+  \titleformat{\section}{\normalfont\bfseries\normalsize}{}{0pt}{}
+  \titleformat{\subsection}{\normalfont\bfseries\normalsize}{}{0pt}{}
+  \titleformat{\subsubsection}{\normalfont\bfseries\normalsize}{}{0pt}{}
+  % float + fig-pos "H": clava las figuras donde están escritas y pone el
+  % título arriba. NO agregar floatrow: es incompatible con float.
+  \usepackage{float}
+  \floatstyle{plaintop}
+  \restylefloat{figure}
+  % Centra las tablas en la página.
+  \setlength{\LTleft}{0pt plus 1fill}
+  \setlength{\LTright}{0pt plus 1fill}
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+\begin{center}
+\textbf{Universidad de Costa Rica}\\
+\textbf{Curso: Herramientas de Datos I}\\[0.4em]
+\textbf{Turismo en Costa Rica}\\
+Llegadas internacionales y visitas a áreas silvestres protegidas\\[0.35em]
+\textbf{Integrantes}\\
+Felipe Pereira Fallas \quad Kevin Arias Reyes\\
+Sebastián Mora Rojas \quad Jerald Valverde Mora\\[0.35em]
+6 de noviembre de 2026
+\end{center}
+
+# Introducción
+
+Las llegadas internacionales de turistas y las visitas a áreas silvestres protegidas describen flujos distintos del turismo en Costa Rica: entradas al país y registros de uso de espacios naturales. Caracterizar cuándo aumenta o disminuye cada flujo aporta información para planificar servicios turísticos y la gestión de áreas protegidas. La comparación también tiene interés estadístico porque permite contrastar la estacionalidad y la asociación entre ambas series. Como los datos están agregados por mes, describen patrones conjuntos, pero no prueban causalidad ni identifican personas únicas detrás de cada visita.
+
+El análisis utiliza registros mensuales de llegadas internacionales y de visitas de residentes y no residentes a áreas protegidas. La base de llegadas cubre 2013–2025 y la de visitas, 2013–2024; el análisis conjunto utiliza el período común 2013–2024, equivalente a 144 meses. El código calcula índices estacionales, tendencias y variaciones interanuales, y examina la asociación entre series mediante correlaciones y modelos lineales. Algunas comparaciones distinguen los períodos 2013–2019 y 2022–2024 y excluyen 2020–2021.
+
+El repositorio atribuye ambas bases al Instituto Costarricense de Turismo (ICT). El ICT publica la serie de llegadas internacionales con información de la Dirección General de Migración y Extranjería. Para las visitas a áreas silvestres protegidas, publica la serie mensual y atribuye la fuente a la Gerencia de Áreas Silvestres Protegidas del SINAC.
+
+# Objetivo general
+
+Pronosticar, para los próximos 12 meses, las llegadas mensuales de turistas internacionales a Costa Rica y las visitas totales a áreas silvestres protegidas, utilizando sus series históricas y seleccionando para cada una el modelo con menor RMSE de validación.
+
+# Metodología 
+
+Para el siguiente análisis se usarán los datos consultados del Instituto Costarricense de Turismo (ICT). En este caso se utilizarán dos documentos: indicador de visitas a Áreas Silvestres Protegidas y el Anuario Estadístico de Turismo 2025, específicamente la sección de Llegadas Internacionales de Turistas 2009-2025. 
+
+Este primer documento nos brinda información sobre sobre el número de visitas de residentes  y no residentes a las Áreas Silvestres Protegidas, dando datos detallados por cada mes de los años descritos. Por otro lado, el documento de LLegadas Internacionales de Turistas 2009-2025, de la misma manera nos da información detallada por cada mes de los años señalados de las llegadas internacionales a Costa Rica, por todas las vías, incluídas, terrestre, marítima y aérea.
+
+A continuación se procede a describir el proceso metodológico de este proyecto:
+
+## Obtención y tratamiento de los datos.
+
+La recopilación de información se realizó a partir de dos documentos PDF que contienen estadísticas sobre las visitas a áreas silvestres protegidas y las llegadas de turistas a Costa Rica. Para extraer y procesar los datos se utilizó el lenguaje de programación `R`, mediante los paquetes `pdftools`, `dplyr`, `purrr`, `tidyr`, `stringr` y `writexl`.
+
+En primera instancia, se utilizó la función `pdf_data()` para extraer los elementos textuales de las páginas seleccionadas, incluyendo sus coordenadas de ubicación. Posteriormente, se identificaron los registros correspondientes a cada mes y se reconstruyeron las filas de las tablas mediante la agrupación de elementos ubicados en posiciones verticales similares.
+
+Debido a que algunos valores numéricos se encontraban fragmentados durante la extracción, se desarrollaron funciones personalizadas para reconstruir las cifras originales. Para los datos de áreas silvestres protegidas, se utilizó la relación entre visitantes residentes, no residentes y el total. Para las llegadas de turistas, se concatenaron los bloques numéricos correspondientes a cada cifra, considerando la separación de miles presente en el documento.
+
+Finalmente, la información se organizó en dos bases de datos independientes, incorporando las variables de año y mes junto con sus respectivos indicadores. Ambas bases se exportaron a formato Excel para facilitar su posterior utilización en los procesos de exploración y análisis estadístico.
+
+## Preparación de las series para el modelado
+
+Para el pronóstico se utilizaron las series mensuales de llegadas internacionales de turistas (enero de 2013 a diciembre de 2025, 156 observaciones) y de visitas totales a Áreas Silvestres Protegidas (enero de 2013 a diciembre de 2024, 144 observaciones). Cada serie se modeló de forma independiente y univariante, es decir, únicamente a partir de su propio comportamiento pasado: tendencia, estacionalidad y dependencia entre meses consecutivos. El análisis se implementó en `R` con los paquetes `fpp3` (que integra `tsibble`, `fable` y `feasts`), `readxl` y `readr`.
+
+Las series presentan una tendencia creciente previa a 2020, una estacionalidad marcada (temporada alta de diciembre a marzo y mínimos en setiembre y octubre) y un quiebre abrupto durante la pandemia de COVID-19. Estas características determinaron los dos pasos de preparación que se describen a continuación.
+
+### Transformación logarítmica
+
+Todos los modelos se ajustaron sobre el logaritmo natural de cada serie. Esta transformación convierte la estacionalidad proporcional (picos que crecen junto con el nivel de la serie) en una estacionalidad aditiva, estabiliza la varianza y garantiza pronósticos positivos al revertir la transformación. Los paquetes `fable` y `fabletools` revierten la transformación de forma automática y, por defecto, aplican un ajuste de sesgo para que el pronóstico puntual corresponda a la media de la distribución.
+
+En adelante, $y^*_t = \log(y_t)$ denota la serie transformada.
+
+### Tratamiento del periodo COVID-19
+
+Si los meses de pandemia se incorporaran sin tratamiento, los modelos interpretarían la caída como parte de la dinámica normal de la serie, lo que deprimiría la tendencia, distorsionaría la estacionalidad e inflaría los intervalos de predicción. Por esta razón:
+
+1. Se marcaron como faltantes los meses comprendidos entre marzo de 2020 y diciembre de 2022.
+2. Se ajustó un modelo ARIMA estacional con los datos restantes, estimado mediante el filtro de Kalman, que admite observaciones faltantes.
+3. Los meses faltantes se reemplazaron por la estimación de dicho modelo (función `interpolate()`).
+4. Los modelos de pronóstico se ajustaron sobre la serie así completada.
+
+La ventana inicia en marzo de 2020, primer mes con caída abrupta. Su fin en diciembre de 2022 es un criterio de juicio: en 2022 las llegadas aún se ubicaban cerca del 80 % del nivel de 2019, mientras que a partir de 2023 la serie parece haberse estabilizado en un nivel nuevo, por lo que esos datos se conservaron. Como consecuencia, el pronóstico describe lo esperable dada la dinámica previa a la pandemia y la recuperación observada, y no un nuevo choque.
+
+## Modelos de pronóstico utilizados
+
+Se ajustaron cuatro modelos sobre cada serie, a los que se agrega una referencia ingenua que no compite por ser seleccionada, sino que sirve de punto de comparación. Los tres primeros modelos parten de supuestos distintos sobre cómo se genera la serie; el cuarto los combina.
+
+### ETS (suavizamiento exponencial con espacio de estados)
+
+El modelo ETS descompone la serie en componentes no observables (nivel, tendencia y estacionalidad) que se actualizan mes a mes otorgando mayor peso a las observaciones recientes. En su forma aditiva con tendencia y estacionalidad (Holt-Winters), con periodo estacional $m = 12$, las ecuaciones son:
+
+$$
+\begin{aligned}
+\ell_t &= \alpha\,(y^*_t - s_{t-m}) + (1-\alpha)(\ell_{t-1} + b_{t-1}) \\
+b_t &= \beta\,(\ell_t - \ell_{t-1}) + (1-\beta)\,b_{t-1} \\
+s_t &= \gamma\,(y^*_t - \ell_{t-1} - b_{t-1}) + (1-\gamma)\,s_{t-m} \\
+\hat{y}^*_{t+h} &= \ell_t + h\,b_t + s_{t+h-m(k+1)}
+\end{aligned}
+$$
+
+donde $\ell_t$, $b_t$ y $s_t$ son el nivel, la tendencia y el componente estacional, y $\alpha$, $\beta$ y $\gamma$ (entre 0 y 1) controlan la velocidad de adaptación de cada uno. Valores altos implican que el modelo «olvida» más rápido el pasado.
+
+La función `ETS()` evalúa las combinaciones posibles de error, tendencia (con o sin amortiguamiento) y estacionalidad, y selecciona la de menor criterio de información corregido (AICc). Dado que el ajuste se realiza en logaritmos, un componente estacional aditivo equivale a uno multiplicativo en la escala original. Este modelo se adapta bien a cambios graduales de nivel y de tendencia, como los ocurridos durante la recuperación postpandemia, y funciona de forma estable con pocas observaciones.
+
+### ARIMA estacional
+
+El modelo ARIMA explica cada valor a partir de los valores y errores de meses anteriores. Se denota ARIMA$(p,d,q)(P,D,Q)_{12}$, donde $d$ y $D$ son el número de diferencias regulares y estacionales necesarias para lograr estacionariedad, $p$ y $P$ los términos autorregresivos, y $q$ y $Q$ los términos de media móvil. Con el operador de rezago $B$, el modelo se expresa como:
+
+$$
+\phi(B)\,\Phi(B^{12})\,(1-B)^d\,(1-B^{12})^D\,y^*_t = c + \theta(B)\,\Theta(B^{12})\,\varepsilon_t
+$$
+
+La función `ARIMA()` aplica el algoritmo de Hyndman y Khandakar (2008): determina $d$ y $D$ mediante pruebas de raíz unitaria (KPSS y OCSB) y busca los demás órdenes con una búsqueda por pasos que minimiza el AICc. Es el enfoque estándar para series mensuales con estacionalidad y captura la inercia de corto plazo, de forma complementaria a ETS.
+
+### Regresión con tendencia y estacionalidad (TSLM)
+
+El modelo de regresión lineal ajusta una tendencia lineal en el tiempo más variables indicadoras de mes:
+
+$$
+y^*_t = \beta_0 + \beta_1\,t + \sum_{j=2}^{12}\gamma_j\,D_{j,t} + \varepsilon_t
+$$
+
+donde $t$ es el índice de tiempo y $D_{j,t}$ indica si la observación corresponde al mes $j$ (enero es la categoría de referencia). En logaritmos, la pendiente $\beta_1$ equivale a un crecimiento porcentual constante. Es el modelo más simple y transparente, con estacionalidad fija y tendencia rígida, por lo que sirve como referencia estable. Su limitación es que supone errores independientes; si los residuos presentan autocorrelación, sus intervalos de predicción resultan demasiado estrechos.
+
+### Combinación de modelos
+
+El modelo combinado es el promedio aritmético de los tres anteriores:
+
+$$
+\hat{y}^{\,comb}_{t+h} = \tfrac{1}{3}\left(\hat{y}^{ETS}_{t+h} + \hat{y}^{ARIMA}_{t+h} + \hat{y}^{TSLM}_{t+h}\right)
+$$
+
+La literatura de pronósticos señala que promediar modelos con estructuras distintas suele reducir el error frente al modelo individual promedio y protege contra la elección de un modelo inadecuado, ya que sus errores tienden a compensarse parcialmente (Bates y Granger, 1969; Clemen, 1989). El promedio simple es difícil de superar con ponderaciones estimadas, especialmente en muestras cortas.
+
+### Referencia ingenua estacional
+
+Como punto de comparación se incluye el método ingenuo estacional, que pronostica para cada mes el valor observado en ese mismo mes del año anterior:
+
+$$
+\hat{y}_{t+h} = y_{t+h-m\,(k+1)}, \qquad m = 12
+$$
+
+donde $k$ es el número de años completos contenidos en el horizonte $h$. No estima parámetros ni supone una forma funcional: simplemente repite el último ciclo anual observado.
+
+Su función aquí no es pronosticar, sino fijar el umbral mínimo de desempeño. En series con estacionalidad muy marcada este método resulta sorprendentemente competitivo, de modo que un modelo estadístico solo demuestra aportar valor si logra un error menor. Hyndman y Athanasopoulos (2021) recomiendan reportar siempre al menos un método de referencia de este tipo, ya que una métrica de error carece de interpretación sin un punto de comparación. Por esta razón el método ingenuo se ajusta y evalúa en las mismas condiciones que los demás, pero se excluye de la selección.
+
+## Selección del mejor modelo
+
+La selección opera en dos niveles distintos:
+
+- **Dentro de cada familia de modelos**, las funciones `ETS()` y `ARIMA()` eligen automáticamente su especificación (componentes de ETS; órdenes $p$, $d$, $q$, $P$, $D$, $Q$ de ARIMA) mediante el AICc, que equilibra el ajuste a los datos con la complejidad del modelo.
+- **Entre las cuatro alternativas** (ETS, ARIMA, TSLM y combinado), la elección se basa en el error de pronóstico sobre datos que el modelo no utilizó para ajustarse (validación por conjunto de prueba). La referencia ingenua se evalúa en el mismo ejercicio, pero queda fuera de la selección: su papel es verificar que el modelo elegido aporte algo más que repetir el año anterior.
+
+El procedimiento de validación consistió en:
+
+1. Reservar los últimos 24 meses de cada serie como conjunto de prueba: 2024 y 2025 para las llegadas, y 2023 y 2024 para las visitas a áreas silvestres. Estos periodos quedan fuera de la ventana COVID, por lo que se evalúan contra datos observados y no interpolados.
+2. Ajustar los cuatro modelos con los datos anteriores al conjunto de prueba.
+3. Pronosticar los 24 meses reservados y calcular los errores $e_t = y_t - \hat{y}_t$ respecto de los valores reales.
+4. Resumir los errores con tres métricas:
+
+$$
+\text{RMSE} = \sqrt{\tfrac{1}{n}\sum e_t^2}, \qquad
+\text{MAE} = \tfrac{1}{n}\sum |e_t|, \qquad
+\text{MAPE} = \tfrac{100}{n}\sum \left|\tfrac{e_t}{y_t}\right|
+$$
+
+El **criterio de selección es el menor RMSE**, ya que penaliza con mayor severidad los errores grandes, que son los más costosos al planificar. El MAE y el MAPE se reportan de forma complementaria: el primero está expresado en las mismas unidades de la serie y el segundo permite una lectura relativa. Los tres indicadores se calculan también para la referencia ingenua, de manera que el desempeño del modelo seleccionado pueda interpretarse en términos relativos y no en abstracto. Una vez elegido el modelo, se reajustó con la serie completa y se generaron los pronósticos futuros con intervalos de predicción del 95 %.
+
+```{r}
+#| label: calculo
+#| include: false
+
+
+faltan <- setdiff(c("fpp3", "readxl", "knitr"), rownames(installed.packages()))
+if (length(faltan) > 0) {
+  stop("Faltan estos paquetes: ", paste(faltan, collapse = ", "),
+       ". Instalalos con install.packages(c(\"fpp3\",\"readxl\",\"knitr\")) ",
+       "en la consola de R y volvé a renderizar.")
+}
+
+library(fpp3)
+library(readxl)
+library(knitr)
+
+# Busca los datos en las ubicaciones posibles. Si no los encuentra, avisa
+# cuál es el directorio de trabajo
+buscar <- function(archivo) {
+  candidatos <- file.path(c("../data", "data", "."), archivo)
+  hallados <- candidatos[file.exists(candidatos)]
+  if (length(hallados) == 0) {
+    stop("No encuentro el archivo '", archivo, "'. ",
+         "El directorio de trabajo actual es: ", getwd(), ".")
+  }
+  hallados[1]
+}
+
+RUTA_LLEGADAS <- buscar("llegadas_costarica.xlsx")
+RUTA_VISITAS  <- buscar("visitas_areas_silvestres.xlsx")
+H             <- 24
+N_VALIDACION  <- 24
+COVID_INI     <- yearmonth("2020 Mar")
+COVID_FIN     <- yearmonth("2022 Dec")
+
+MESES <- c(enero = 1, febrero = 2, marzo = 3, abril = 4, mayo = 5, junio = 6,
+           julio = 7, agosto = 8, setiembre = 9, septiembre = 9,
+           octubre = 10, noviembre = 11, diciembre = 12)
+
+ORDEN <- c("Ene", "Feb", "Mar", "Abr", "May", "Jun",
+           "Jul", "Ago", "Set", "Oct", "Nov", "Dic")
+
+leer_serie <- function(ruta, columna) {
+  read_excel(ruta) |>
+    mutate(mes_num = unname(MESES[tolower(mes)]),
+           fecha   = yearmonth(make_date(anio, mes_num, 1)),
+           valor   = as.numeric(.data[[columna]])) |>
+    select(fecha, valor) |>
+    as_tsibble(index = fecha)
+}
+
+llegadas <- leer_serie(RUTA_LLEGADAS, "llegadas")
+visitas  <- leer_serie(RUTA_VISITAS,  "total")
+
+analizar <- function(datos, nombre, h = H) {
+
+  na_serie <- datos |>
+    mutate(valor = if_else(fecha >= COVID_INI & fecha <= COVID_FIN,
+                           NA_real_, valor))
+
+  # El hueco de la pandemia impide que ARIMA() elija sus órdenes de forma
+  # automática: las pruebas de raíz unitaria no funcionan con 34 meses
+  # faltantes seguidos y el modelo sale vacío. Por eso se fijan los órdenes
+  # a mano, y si aun así falla se usan alternativas cada vez más simples.
+  probar <- function(fn) {
+    tryCatch({
+      ajuste <- suppressWarnings(fn(na_serie))
+      r <- interpolate(ajuste, na_serie) |> select(fecha, valor)
+      if (any(is.na(r$valor))) NULL else r
+    }, error = function(e) NULL)
+  }
+
+  adj <- probar(function(d) model(d, m = ARIMA(log(valor) ~ pdq(1, 1, 1) + PDQ(0, 1, 1))))
+  metodo <- "ARIMA(1,1,1)(0,1,1)[12]"
+
+  if (is.null(adj)) {
+    adj <- probar(function(d) model(d, m = ARIMA(log(valor) ~ pdq(0, 1, 1) + PDQ(0, 1, 1))))
+    metodo <- "ARIMA(0,1,1)(0,1,1)[12]"
+  }
+  if (is.null(adj)) {
+    adj <- probar(function(d) model(d, m = TSLM(log(valor) ~ trend() + season())))
+    metodo <- "regresión con tendencia y estacionalidad"
+  }
+  if (is.null(adj)) {
+    stop("No se pudo rellenar el periodo COVID con ninguno de los métodos probados.")
+  }
+
+  especificar <- function(d) {
+    d |>
+      model(ets     = ETS(log(valor)),
+            arima   = ARIMA(log(valor)),
+            tslm    = TSLM(log(valor) ~ trend() + season()),
+            ingenuo = SNAIVE(valor)) |>
+      mutate(combinado = (ets + arima + tslm) / 3)
+  }
+
+  corte  <- max(datos$fecha) - (N_VALIDACION - 1)
+  fit_tr <- adj |> filter(fecha < corte) |> especificar()
+  fc_val <- forecast(fit_tr, h = N_VALIDACION)
+
+  acc <- accuracy(fc_val, datos |> select(fecha, valor)) |>
+    select(.model, RMSE, MAE, MAPE) |>
+    arrange(RMSE)
+
+  estadisticos <- acc |> filter(.model != "ingenuo")
+  mejor <- estadisticos$.model[1]
+
+  fit <- especificar(adj)
+  fc  <- forecast(fit, h = h)
+
+  list(datos = datos, adj = adj, acc = acc, fc_val = fc_val,
+       fc = fc, mejor = mejor, corte = corte, nombre = nombre,
+       metodo = metodo)
+}
+
+res_ll <- analizar(llegadas, "Llegadas internacionales")
+res_vi <- analizar(visitas,  "Visitas a áreas silvestres")
+
+
+sacar <- function(acc, modelo, met) acc[[met]][acc$.model == modelo]
+
+mejor_ll <- res_ll$mejor
+mejor_vi <- res_vi$mejor
+
+rmse_ll_m <- sacar(res_ll$acc, mejor_ll, "RMSE")
+rmse_ll_i <- sacar(res_ll$acc, "ingenuo", "RMSE")
+mape_ll_m <- sacar(res_ll$acc, mejor_ll, "MAPE")
+mape_ll_i <- sacar(res_ll$acc, "ingenuo", "MAPE")
+
+rmse_vi_m <- sacar(res_vi$acc, mejor_vi, "RMSE")
+rmse_vi_i <- sacar(res_vi$acc, "ingenuo", "RMSE")
+mape_vi_m <- sacar(res_vi$acc, mejor_vi, "MAPE")
+mape_vi_i <- sacar(res_vi$acc, "ingenuo", "MAPE")
+
+gana_ll <- rmse_ll_m < rmse_ll_i
+gana_vi <- rmse_vi_m < rmse_vi_i
+
+dif_ll <- abs(100 * (rmse_ll_m / rmse_ll_i - 1))
+dif_vi <- abs(100 * (rmse_vi_m / rmse_vi_i - 1))
+
+# peor y mejor de los cuatro modelos estadísticos
+est_ll <- res_ll$acc |> filter(.model != "ingenuo")
+brecha_ll <- 100 * (max(est_ll$RMSE) / min(est_ll$RMSE) - 1)
+peor_ll <- est_ll$.model[which.max(est_ll$RMSE)]
+
+# posición del ingenuo en el ranking según cada métrica
+posicion <- function(acc, met) which(acc$.model[order(acc[[met]])] == "ingenuo")
+pos_rmse_ll <- posicion(res_ll$acc, "RMSE")
+pos_mae_ll  <- posicion(res_ll$acc, "MAE")
+pos_mape_ll <- posicion(res_ll$acc, "MAPE")
+n_modelos   <- nrow(res_ll$acc)
+
+pos_rmse_vi <- posicion(res_vi$acc, "RMSE")
+est_vi <- res_vi$acc |> filter(.model != "ingenuo")
+
+mae_ll_i   <- sacar(res_ll$acc, "ingenuo", "MAE")
+mae_ll_peor <- est_ll$MAE[which.max(est_ll$RMSE)]
+
+# el combinado superó al promedio de sus tres componentes?
+rmse_comp <- est_ll$RMSE[est_ll$.model %in% c("ets", "arima", "tslm")]
+rmse_combi <- sacar(res_ll$acc, "combinado", "RMSE")
+prom_comp <- mean(rmse_comp)
+combi_vs_prom <- 100 * (1 - rmse_combi / prom_comp)
+combi_vs_mejor <- 100 * (rmse_combi / min(rmse_comp) - 1)
+
+# cuántos meses de la serie de entrenamiento son interpolados
+meses_covid <- sum(llegadas$fecha >= COVID_INI & llegadas$fecha <= COVID_FIN)
+n_tr_ll <- sum(llegadas$fecha < res_ll$corte)
+n_tr_vi <- sum(visitas$fecha  < res_vi$corte)
+pct_sint_ll <- 100 * meses_covid / n_tr_ll
+pct_sint_vi <- 100 * meses_covid / n_tr_vi
+
+# pronóstico a 12 meses del mejor modelo
+prono <- function(res) {
+  res$fc |>
+    filter(.model == res$mejor) |>
+    hilo(level = 95) |>
+    unpack_hilo(`95%`) |>
+    as_tibble() |>
+    transmute(fecha, pronostico = .mean,
+              inf = `95%_lower`, sup = `95%_upper`) |>
+    slice_head(n = 12)
+}
+
+p_ll <- prono(res_ll)
+p_vi <- prono(res_vi)
+
+tot_ll   <- sum(p_ll$pronostico)
+obs12_ll <- sum(tail(llegadas$valor, 12))
+var_ll   <- 100 * (tot_ll / obs12_ll - 1)
+
+tot_vi   <- sum(p_vi$pronostico)
+obs12_vi <- sum(tail(visitas$valor, 12))
+var_vi   <- 100 * (tot_vi / obs12_vi - 1)
+
+# amplitud del intervalo, como % del pronóstico
+amp_ll <- mean(100 * (p_ll$sup - p_ll$inf) / (2 * p_ll$pronostico))
+amp_vi <- mean(100 * (p_vi$sup - p_vi$inf) / (2 * p_vi$pronostico))
+
+# índice estacional
+indice <- function(serie, anios) {
+  serie |>
+    as_tibble() |>
+    mutate(anio = year(fecha), m = month(fecha)) |>
+    filter(anio %in% anios) |>
+    group_by(anio) |>
+    mutate(media = mean(valor)) |>
+    ungroup() |>
+    mutate(razon = valor / media) |>
+    group_by(m) |>
+    summarise(indice = 100 * mean(razon), .groups = "drop")
+}
+
+ie_ll_pre  <- indice(llegadas, 2013:2019)
+ie_ll_post <- indice(llegadas, 2023:2025)
+ie_vi_pre  <- indice(visitas,  2013:2019)
+ie_vi_post <- indice(visitas,  2023:2024)
+
+amp <- function(d) max(d$indice) / min(d$indice)
+
+mes_alto_ll <- ORDEN[which.max(ie_ll_pre$indice)]
+mes_bajo_ll <- ORDEN[which.min(ie_ll_pre$indice)]
+
+f0 <- function(x) format(round(x), big.mark = " ", scientific = FALSE)
+f1 <- function(x) sprintf("%.1f", x)
+f2 <- function(x) sprintf("%.2f", x)
+```
+
+# Resultados
+
+## Comportamiento de las dos series
+
+```{r}
+#| label: fig-series
+#| fig-cap: "Llegadas internacionales de turistas y visitas totales a áreas silvestres protegidas, datos mensuales. La franja gris marca el periodo tratado como atípico (marzo 2020 a diciembre 2022)."
+#| fig-width: 7
+#| fig-height: 3.6
+
+bind_rows(
+  llegadas |> as_tibble() |> mutate(serie = "Llegadas internacionales"),
+  visitas  |> as_tibble() |> mutate(serie = "Visitas a áreas silvestres")
+) |>
+  mutate(f = as.Date(fecha)) |>
+  ggplot(aes(f, valor / 1000)) +
+  annotate("rect", xmin = as.Date(COVID_INI), xmax = as.Date(COVID_FIN),
+           ymin = -Inf, ymax = Inf, alpha = 0.18, fill = "grey40") +
+  geom_line(linewidth = 0.5) +
+  facet_wrap(~serie, ncol = 1, scales = "free_y") +
+  labs(x = NULL, y = "Miles de personas") +
+  theme_minimal(base_size = 10)
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
+```
+
+La @fig-series muestra que las dos series se comportan de forma parecida. Las dos crecen
+hasta 2019, caen de golpe en 2020 y vuelven a subir desde 2022. También se ve el patrón que
+se repite todos los años: picos a inicio de año y valles a mitad del segundo semestre.
+
+La caída de 2020 no es un dato aislado, es un quiebre. Por eso no se puede tratar como
+un valor atípico cualquiera. La franja gris indica los `r meses_covid` meses que la
+metodología marcó como faltantes y luego rellenó. Esto importa para el objetivo porque un
+modelo que aprendiera esa caída como parte del comportamiento normal pronosticaría una
+tendencia hacia abajo que no corresponde.
+
+## La estacionalidad es el patrón que manda
+
+```{r}
+#| label: fig-estacional
+#| fig-cap: "Índice estacional antes y después de la pandemia. El valor 100 equivale a un mes promedio de su propio año."
+#| fig-width: 7
+#| fig-height: 3.2
+
+bind_rows(
+  ie_ll_pre  |> mutate(serie = "Llegadas",         periodo = "Antes de 2020"),
+  ie_ll_post |> mutate(serie = "Llegadas",         periodo = "Después de 2022"),
+  ie_vi_pre  |> mutate(serie = "Áreas silvestres", periodo = "Antes de 2020"),
+  ie_vi_post |> mutate(serie = "Áreas silvestres", periodo = "Después de 2022")
+) |>
+  mutate(mes = factor(ORDEN[m], levels = ORDEN)) |>
+  ggplot(aes(mes, indice, group = periodo, colour = periodo)) +
+  geom_hline(yintercept = 100, linetype = "dashed", colour = "grey60") +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 1.3) +
+  facet_wrap(~serie) +
+  labs(x = NULL, y = "Índice", colour = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom")
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
+```
+
+En la @fig-estacional se observa que el mes más alto de las llegadas (`r mes_alto_ll`) vale
+`r f2(amp(ie_ll_pre))` veces el más bajo (`r mes_bajo_ll`) en el periodo 2013-2019. En las
+áreas silvestres esa razón es de `r f2(amp(ie_vi_pre))`. O sea, la visitación a parques es
+todavía más estacional que las llegadas al país.
+
+Esto ocurre porque el turismo de naturaleza depende del clima mucho más que el resto. Los
+meses bajos son setiembre y octubre, que son los más lluviosos. Un turista que viene en esa
+época hace otras actividades.
+
+La implicación para el objetivo es directa: si la estacionalidad explica tanto de la serie,
+cualquier modelo que la capture bien ya va a acertar bastante. Eso sube la vara de lo que
+significa un buen pronóstico, y por eso más adelante se compara contra una referencia simple.
+
+```{r}
+#| label: tbl-estacional
+#| tbl-cap: "Índice estacional de las llegadas internacionales antes y después de la pandemia."
+
+ie_ll_pre |>
+  transmute(Mes = ORDEN[m], `2013-2019` = round(indice, 1)) |>
+  bind_cols(`2023-2025` = round(ie_ll_post$indice, 1)) |>
+  mutate(Diferencia = `2023-2025` - `2013-2019`) |>
+  kable(align = c("l", "r", "r", "r"))
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
+```
+
+La @tbl-estacional muestra algo que no se ve a simple vista en el gráfico: el patrón
+estacional **cambió** después de la pandemia. La amplitud pasó de `r f2(amp(ie_ll_pre))` a
+`r f2(amp(ie_ll_post))`. No es el mismo calendario de antes.
+
+La causa probable es un cambio en quién visita el país. Entre 2019 y 2025 el mercado
+terrestre centroamericano se redujo de forma marcada y subió el peso del turista que llega en
+avión, que viaja en otras fechas. La implicación es una limitación del modelo: si la
+estacionalidad no es estable, estimarla con toda la serie mezcla dos comportamientos
+distintos.
+
+Lo llamativo es que las dos series se movieron en sentidos contrarios. La amplitud de las
+llegadas pasó de `r f2(amp(ie_ll_pre))` a `r f2(amp(ie_ll_post))`, o sea que el año se
+concentró más. La de las áreas silvestres hizo lo opuesto: bajó de `r f2(amp(ie_vi_pre))` a
+`r f2(amp(ie_vi_post))`, es decir que se aplanó. Una explicación razonable es que esta
+segunda serie suma residentes y no residentes, y los residentes visitan los parques según el
+calendario costarricense (vacaciones de enero, Semana Santa, julio) y no según la temporada
+seca turística. Si el peso de cada grupo cambió, la estacionalidad del total cambia aunque la
+de cada grupo por separado siga igual. Esto es importante para el objetivo porque significa
+que las dos series no se pueden tratar como si respondieran al mismo fenómeno.
+
+## Qué tanto pesa el relleno del periodo COVID
+
+```{r}
+#| label: fig-interpolado
+#| fig-cap: "Llegadas observadas y valores estimados para el periodo marzo 2020 - diciembre 2022."
+#| fig-width: 7
+#| fig-height: 2.8
+
+res_ll$adj |>
+  as_tibble() |>
+  rename(ajustado = valor) |>
+  left_join(llegadas |> as_tibble() |> rename(observado = valor), by = "fecha") |>
+  mutate(f = as.Date(fecha)) |>
+  filter(f >= as.Date("2018-01-01")) |>
+  ggplot(aes(f)) +
+  geom_line(aes(y = observado / 1000, colour = "Observado"), linewidth = 0.6) +
+  geom_line(aes(y = ajustado / 1000, colour = "Serie usada para modelar"),
+            linewidth = 0.6, linetype = "22") +
+  labs(x = NULL, y = "Miles de llegadas", colour = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom")
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
+```
+
+La @fig-interpolado compara lo que realmente pasó con la serie que se usó para ajustar los
+modelos. La diferencia es enorme, y eso hay que decirlo claro: durante esos meses el modelo
+no aprende de datos reales, aprende de una estimación de lo que habría pasado sin pandemia.
+Esa estimación es posible porque el modelo se formula en espacio de estados y se estima con el
+filtro de Kalman, que admite observaciones faltantes sin descartar el resto de la serie
+(Durbin y Koopman, 2012). La alternativa clásica para un choque de este tipo es el análisis de
+intervención, que conserva los datos reales y agrega una variable que marca el periodo
+afectado (Box y Tiao, 1975); se retoma en las limitaciones.
+
+Esto tiene un costo distinto en cada serie. En las llegadas, los meses rellenados son
+`r f1(pct_sint_ll)` % del periodo de entrenamiento usado en la validación. En las visitas a
+áreas silvestres son `r f1(pct_sint_vi)` %, y además son los últimos meses de ese periodo. Es
+decir, para las áreas silvestres el modelo prácticamente no vio datos reales posteriores a la
+pandemia antes de tener que pronosticarlos.
+
+La implicación es que los resultados de las áreas silvestres hay que leerlos con más
+cuidado que los de las llegadas.
+
+## Validación: qué tan bien pronostica cada modelo
+
+```{r}
+#| label: tbl-val-llegadas
+#| tbl-cap: "Error de pronóstico sobre los 24 meses reservados (2024-2025), llegadas internacionales. Menor es mejor."
+
+res_ll$acc |>
+  transmute(Modelo = .model,
+            RMSE = f0(RMSE), MAE = f0(MAE), `MAPE (%)` = round(MAPE, 1)) |>
+  kable(align = c("l", "r", "r", "r"))
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
+
+```{r}
+#| label: tbl-val-visitas
+#| tbl-cap: "Error de pronóstico sobre los 24 meses reservados (2023-2024), visitas a áreas silvestres."
+
+res_vi$acc |>
+  transmute(Modelo = .model,
+            RMSE = f0(RMSE), MAE = f0(MAE), `MAPE (%)` = round(MAPE, 1)) |>
+  kable(align = c("l", "r", "r", "r"))
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
+
+En las @tbl-val-llegadas y @tbl-val-visitas se agregó un quinto modelo que no estaba en la
+lista original: el **ingenuo estacional**, que pronostica para cada mes exactamente lo mismo
+que se observó en ese mismo mes del año anterior. No tiene parámetros ni supuestos. Se incluye
+porque un modelo solo demuestra que sirve si le gana a la alternativa más barata disponible.
+Hyndman y Athanasopoulos (2021) recomiendan reportar siempre al menos un método de referencia
+de este tipo, porque una métrica de error no se puede interpretar en abstracto.
+
+Para las llegadas el mejor modelo fue **`r mejor_ll`**, con un RMSE de `r f0(rmse_ll_m)`
+y un MAPE de `r f1(mape_ll_m)` %. Ese MAPE se lee así: en promedio el modelo se equivocó
+alrededor de un `r f1(mape_ll_m)` % en cada mes de los dos años que no vio al ajustarse.
+
+El ingenuo obtuvo un RMSE de `r f0(rmse_ll_i)` y un MAPE de `r f1(mape_ll_i)` %. El modelo
+elegido `r ifelse(gana_ll, "sí superó", "no superó")` a la referencia: redujo el error en
+`r f1(dif_ll)` %. Esto es lo que permite afirmar que el modelo aporta algo. Sin esta
+comparación, un MAPE de `r f1(mape_ll_m)` % no se podría interpretar, porque no habría forma
+de saber si es bueno o si cualquier regla simple habría dado lo mismo.
+
+En las áreas silvestres pasa lo contrario, ahí el mejor de los cuatro modelos también fue **`r mejor_vi`**, pero
+`r ifelse(gana_vi, "sí superó", "no logró superar")` al ingenuo: su RMSE fue
+`r f1(dif_vi)` % `r ifelse(gana_vi, "menor", "mayor")`
+(`r f0(rmse_vi_m)` contra `r f0(rmse_vi_i)`). El ingenuo quedó en la posición
+`r pos_rmse_vi` de `r n_modelos`.
+
+`r if (!gana_vi) "Reportarlo a mi parecer es de significancia, porque la causa está identificada y es la misma que se mostró en la @fig-interpolado. Para esta serie el periodo de prueba empieza en enero de 2023, de modo que el entrenamiento termina en diciembre de 2022, que es el último mes rellenado. Dicho de otra forma: los modelos nunca vieron un dato real posterior a la pandemia antes de tener que pronosticar dos años. Estimaron tendencia y estacionalidad sobre valores que son una estimación de lo que habría ocurrido sin pandemia, y proyectaron un crecimiento que no se dio. El método ingenuo, al repetir el último ciclo sin añadir tendencia, resultó menos sensible a ese problema." else ""`
+
+`r if (!gana_vi) "La conclusión honesta es que, con los datos disponibles, no se puede justificar un modelo sofisticado para esta serie. El pronóstico que sigue se reporta como escenario, no como la mejor estimación posible, y el método ingenuo es una referencia igualmente defendible." else ""`
+
+Ahora bien, ETS gana ya que este modelo va actualizando el nivel y la tendencia mes a mes, y
+les da más peso a los datos recientes (Hyndman et al., 2008). Esa es justamente la característica que sirve acá: después de
+la pandemia el turismo se estabilizó en un nivel distinto al de antes, y un modelo que se
+adapta rápido lo capta mejor que uno que supone una estructura fija para toda la serie.
+
+**¿Por qué el peor fue `r peor_ll`?** La regresión impone una tendencia lineal única estimada
+sobre todos los años, incluidos los meses rellenados. Esa recta no representa bien el cambio
+de nivel que hubo entre 2019 y 2023, y el error se arrastra hacia los años de prueba. Entre el
+mejor y el peor modelo hay una diferencia de `r f1(brecha_ll)` % en el RMSE, lo que confirma
+que valía la pena comparar y no escoger uno de entrada.
+
+A su vez, el ingenuo quedó en la posición `r pos_rmse_ll` de
+`r n_modelos` según el RMSE, pero en la `r pos_mae_ll` según el MAE y el MAPE. Es decir, su
+error típico no es el peor; lo que lo hunde son unos pocos meses con fallos grandes, que el
+RMSE castiga más por elevar al cuadrado. Hyndman y Koehler (2006) advierten justamente que el
+orden de los modelos puede cambiar según la métrica elegida, y que conviene escogerla según el
+costo que tenga el error en el problema concreto. Esto importa para el objetivo: si lo que preocupa es
+no quedarse corto en un mes puntual de temporada alta, el RMSE es la métrica correcta, y por
+eso se usó como criterio de selección.
+
+El modelo combinado obtuvo un RMSE
+`r f1(abs(combi_vs_mejor))` % `r ifelse(combi_vs_mejor > 0, "más alto", "más bajo")` que el
+mejor de sus componentes, pero `r f1(abs(combi_vs_prom))` %
+`r ifelse(combi_vs_prom > 0, "más bajo", "más alto")` que el promedio de los tres. Eso es
+exactamente lo que predicen Bates y Granger (1969) y Clemen (1989): promediar protege contra
+elegir un mal modelo, pero no supera al mejor cuando este se identifica con claridad.
+Como acá sí se pudo identificar mediante validación, se prefiere el modelo individual.
+
+```{r}
+#| label: fig-validacion
+#| fig-cap: "Llegadas observadas contra lo pronosticado por el mejor modelo y por la referencia ingenua, en los 24 meses de validación."
+#| fig-width: 7
+#| fig-height: 3
+
+res_ll$fc_val |>
+  as_tibble() |>
+  filter(.model %in% c(mejor_ll, "ingenuo")) |>
+  transmute(fecha, modelo = .model, valor = .mean) |>
+  bind_rows(llegadas |> as_tibble() |>
+              filter(fecha >= res_ll$corte) |>
+              transmute(fecha, modelo = "Observado", valor)) |>
+  mutate(f = as.Date(fecha)) |>
+  ggplot(aes(f, valor / 1000, colour = modelo, linetype = modelo)) +
+  geom_line(linewidth = 0.6) +
+  labs(x = NULL, y = "Miles de llegadas", colour = NULL, linetype = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom")
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
+
+La @fig-validacion muestra dónde se separa cada uno. Los dos siguen bien la forma del año:
+suben en temporada alta y bajan en setiembre y octubre. La diferencia está en el nivel. El
+ingenuo repite el año anterior y por eso se queda corto o se pasa cuando el turismo cambia de
+escalón, mientras que el modelo ajusta ese nivel. Confirma lo dicho antes: el calendario es la
+parte fácil, lo difícil es acertarle a cuánto creció el turismo.
+
+## Pronóstico para los próximos 12 meses
+
+```{r}
+#| label: fig-pron-llegadas
+#| fig-cap: "Pronóstico de llegadas internacionales con intervalos de predicción de 80 % y 95 %. La vista se acerca a partir de 2022 para que el pronóstico sea legible."
+#| fig-width: 7
+#| fig-height: 3.3
+
+res_ll$fc |>
+  filter(.model == mejor_ll) |>
+  autoplot(llegadas |> filter(year(fecha) >= 2022), level = c(80, 95)) +
+  labs(x = NULL, y = "Llegadas") +
+  theme_minimal(base_size = 10)
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
+
+```{r}
+#| label: tbl-pron-llegadas
+#| tbl-cap: "Pronóstico mensual de llegadas internacionales con intervalo de predicción de 95 %."
+
+p_ll |>
+  transmute(Mes = as.character(fecha),
+            Pronóstico = f0(pronostico),
+            `Límite inferior` = f0(inf),
+            `Límite superior` = f0(sup)) |>
+  kable(align = c("l", "r", "r", "r"))
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
+
+La @tbl-pron-llegadas y la @fig-pron-llegadas resumen el pronóstico. El total proyectado para
+los próximos doce meses es de `r f0(tot_ll)` llegadas, contra `r f0(obs12_ll)` en los últimos
+doce meses observados: una variación de `r f1(var_ll)` %.
+
+Lo que más conviene mirar no es ese número sino el ancho del intervalo. En promedio, el
+intervalo de 95 % se extiende alrededor de `r f1(amp_ll)` % hacia cada lado del pronóstico.
+Es un rango amplio, y es honesto que lo sea: con pocos años de datos posteriores al quiebre,
+la incertidumbre real es grande.
+
+La implicación práctica es que el resultado sirve para planificar escenarios, no para
+comprometer cifras. Para quien tiene que decidir cuánto personal contratar en temporada alta,
+el dato útil es que el rango se mantiene, no que el punto central sea exacto.
+
+```{r}
+#| label: fig-pron-visitas
+#| fig-cap: "Pronóstico de visitas totales a áreas silvestres protegidas con intervalos de 80 % y 95 %. La vista se acerca a partir de 2022."
+#| fig-width: 7
+#| fig-height: 3.3
+
+res_vi$fc |>
+  filter(.model == mejor_vi) |>
+  autoplot(visitas |> filter(year(fecha) >= 2022), level = c(80, 95)) +
+  labs(x = NULL, y = "Visitas") +
+  theme_minimal(base_size = 10)
+```
+
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
+
+Para las áreas silvestres (@fig-pron-visitas) el total proyectado a doce meses es de
+`r f0(tot_vi)` visitas, una variación de `r f1(var_vi)` % respecto a los últimos doce meses
+observados, es decir prácticamente el mismo nivel.
+
+El intervalo acá es de `r f1(amp_vi)` % a cada lado, más del doble de ancho que el de las
+llegadas. Esa diferencia no es casual y resume todo lo dicho antes: esta serie es más
+estacional, su entrenamiento depende más de datos rellenados y su modelo
+`r ifelse(gana_vi, "superó", "no superó")` a la referencia ingenua. El intervalo está
+reflejando una incertidumbre que es real.
+
+La implicación práctica es que estos dos pronósticos no merecen el mismo grado de confianza.
+El de llegadas se puede usar para planificar. El de áreas silvestres sirve para dar un orden
+de magnitud y poco más, y conviene presentarlo siempre acompañado de su rango.
+
+## Limitaciones
+
+1. **Buena parte del entrenamiento no son datos reales:** los `r meses_covid` meses
+   rellenados representan `r f1(pct_sint_ll)` % del periodo de ajuste en las llegadas y
+   `r f1(pct_sint_vi)` % en las áreas silvestres. El pronóstico describe lo esperable si la
+   recuperación sigue la dinámica previa, no un escenario con nuevos choques. La validación
+   mostró que esta limitación tiene consecuencias medibles: es la explicación más razonable
+   de que en las áreas silvestres ningún modelo superara al método ingenuo.
+
+2. **El régimen nuevo tiene pocos años:** solo se cuenta con datos reales posteriores a 2022,
+   o sea dos o tres ciclos estacionales completos. Es poco para estimar con firmeza una
+   estacionalidad que, como mostró la @tbl-estacional, ya cambió una vez.
+
+3. **Son modelos univariantes:** cada serie se explica solo con su propio pasado. No entran
+   tipo de cambio, conectividad aérea, precios ni actividad económica de los países emisores.
+   Si alguna de esas variables se mueve con fuerza, el modelo no lo puede anticipar.
+
+4. **La composición del turismo cambió y podría volver a cambiar:** el modelo supone que la
+   mezcla de visitantes se mantiene. Si el mercado terrestre centroamericano se recupera, el
+   patrón estacional volvería a moverse.
+
+5. **Las dos series se analizaron por separado y no se afirma causalidad:** que suban y bajen
+   juntas se explica por un calendario común, no porque una determine a la otra. Son datos
+   agregados por mes: no identifican personas ni permiten seguir a un mismo visitante.
+
+6. **La validación usa una sola ventana de 24 meses:** una evaluación con origen móvil, que
+   repite el ejercicio desplazando el punto de corte y promedia los errores, daría una medida
+   más estable (Hyndman y Athanasopoulos, 2021). No se hizo por tiempo y queda pendiente.
+
+7. **El relleno pudo sustituirse por variables de intervención:** conservar los meses reales
+   de la pandemia y marcarlos con una variable indicadora, siguiendo a Box y Tiao (1975),
+   evitaría introducir valores estimados en el entrenamiento. Es la mejora más clara que se
+   identifica para una versión posterior de este trabajo.
+
+# Bibliografía
+
+Bates, J. M., y Granger, C. W. J. (1969). The combination of forecasts. *Operational Research
+Quarterly, 20*(4), 451-468.
+
+Box, G. E. P., y Tiao, G. C. (1975). Intervention analysis with applications to economic and
+environmental problems. *Journal of the American Statistical Association, 70*(349), 70-79.
+
+Clemen, R. T. (1989). Combining forecasts: A review and annotated bibliography.
+*International Journal of Forecasting, 5*(4), 559-583.
+
+Durbin, J., y Koopman, S. J. (2012). *Time series analysis by state space methods* (2.a ed.).
+Oxford University Press.
+
+Hyndman, R. J., y Athanasopoulos, G. (2021). *Forecasting: Principles and practice* (3.a ed.).
+OTexts. https://otexts.com/fpp3/
+
+Hyndman, R. J., y Khandakar, Y. (2008). Automatic time series forecasting: The forecast
+package for R. *Journal of Statistical Software, 27*(3), 1-22.
+
+Hyndman, R. J., y Koehler, A. B. (2006). Another look at measures of forecast accuracy.
+*International Journal of Forecasting, 22*(4), 679-688.
+
+Hyndman, R. J., Koehler, A. B., Ord, J. K., y Snyder, R. D. (2008). *Forecasting with
+exponential smoothing: The state space approach*. Springer.
+
+Instituto Costarricense de Turismo. (2025). *Llegadas internacionales de turistas a Costa
+Rica, 2009-2025*. Departamento de Estadística Turística.
+https://www.ict.go.cr/es/estadisticas.html
+
+Instituto Costarricense de Turismo. (2025). *Indicador de visitas a las áreas silvestres
+protegidas*. Elaborado con datos de la Gerencia de Áreas Silvestres Protegidas del SINAC.
+https://www.ict.go.cr/es/estadisticas.html
+
+# Anexos
+
+**Repositorio del proyecto:**
+
+> `[PEGAR AQUÍ EL ENLACE DEL REPOSITORIO]`
+

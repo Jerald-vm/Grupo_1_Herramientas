@@ -8,9 +8,7 @@ author:
   - Jerald Valverde Mora
 date: today
 lang: es
-output-dir: res
-
-# format:
+ format:
   pdf:
     documentclass: article
     papersize: letter
@@ -40,11 +38,11 @@ library(knitr)
 library(dplyr)
 library(ggplot2)
 
-setwd("C:/Users/jeral/Documents/UCR/VI semestre/herramientas I/Grupo 1 herramientas")
 
-llegadas <- read_excel("data/llegadas_costarica.xlsx")
 
-vida.silvestre <- read_excel("data/visitas_areas_silvestres.xlsx")
+llegadas <- read_excel("../data/llegadas_costarica.xlsx")
+
+vida.silvestre <- read_excel("../data/visitas_areas_silvestres.xlsx")
 
 
 orden.meses <- c("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",

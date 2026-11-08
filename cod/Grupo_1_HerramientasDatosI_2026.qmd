@@ -36,7 +36,7 @@ Llegadas internacionales y visitas a áreas silvestres protegidas\\[0.35em]
 \textbf{Integrantes}\\
 Felipe Pereira Fallas \quad Kevin Arias Reyes\\
 Sebastián Mora Rojas \quad Jerald Valverde Mora\\[0.35em]
-6 de noviembre de 2026
+7 de noviembre de 2026
 \end{center}
 
 
@@ -83,8 +83,6 @@ El modelo de regresión lineal ajusta una tendencia lineal en el tiempo más var
 $$
 y^*_t = \beta_0 + \beta_1\,t + \sum_{j=2}^{12}\gamma_j\,D_{j,t} + \varepsilon_t
 $$
-
-
 
 ### Combinación de modelos
 
@@ -147,7 +145,7 @@ buscar <- function(archivo) {
 
 RUTA_LLEGADAS <- buscar("llegadas_costarica.xlsx")
 RUTA_VISITAS  <- buscar("visitas_areas_silvestres.xlsx")
-H             <- 24
+H             <- 12
 N_VALIDACION  <- 24
 COVID_INI     <- yearmonth("2020 Mar")
 COVID_FIN     <- yearmonth("2022 Dec")

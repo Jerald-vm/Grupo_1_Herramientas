@@ -621,7 +621,8 @@ parte fácil, lo difícil es acertarle a cuánto creció el turismo.
 res_ll$fc |>
   filter(.model == mejor_ll) |>
   autoplot(llegadas |> filter(year(fecha) >= 2022), level = c(80, 95)) +
-  labs(x = NULL, y = "Llegadas") +
+  scale_y_continuous(labels = scales::label_number(scale = 1e-3)) +
+  labs(x = NULL, y = "Llegadas en miles") +
   theme_minimal(base_size = 10)
 ```
 
@@ -657,7 +658,8 @@ el dato útil es que el rango se mantiene, no que el punto central sea exacto.
 res_vi$fc |>
   filter(.model == mejor_vi) |>
   autoplot(visitas |> filter(year(fecha) >= 2022), level = c(80, 95)) +
-  labs(x = NULL, y = "Visitas") +
+  scale_y_continuous(labels = scales::label_number(scale = 1e-3)) +
+  labs(x = NULL, y = "Visitas en miles") +
   theme_minimal(base_size = 10)
 ```
 

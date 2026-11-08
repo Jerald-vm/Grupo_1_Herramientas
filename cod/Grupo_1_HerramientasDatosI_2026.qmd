@@ -425,9 +425,7 @@ significa un buen pronóstico, y por eso más adelante se compara contra una ref
 
 
 
-```{=latex}
-\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
-```
+
 
 La @tbl-estacional muestra algo que no se ve a simple vista en el gráfico: el patrón
 estacional **cambió** después de la pandemia. La amplitud pasó de `r f2(amp(ie_ll_pre))` a
@@ -663,9 +661,7 @@ res_vi$fc |>
   theme_minimal(base_size = 10)
 ```
 
-```{=latex}
-\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
-```
+
 
 Para las áreas silvestres (@fig-pron-visitas) el total proyectado a doce meses es de
 `r f0(tot_vi)` visitas, una variación de `r f1(var_vi)` % respecto a los últimos doce meses
@@ -766,6 +762,10 @@ ie_ll_pre |>
   kable(align = c("l", "r", "r", "r"))
 ```
 
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
+```
+
 ```{r}
 #| label: tbl-pron-llegadas
 #| tbl-cap: "Pronóstico mensual de llegadas internacionales con intervalo de predicción de 95 %."
@@ -777,7 +777,9 @@ p_ll |>
             `Límite superior` = f0(sup)) |>
   kable(align = c("l", "r", "r", "r"))
 ```
-
+```{=latex}
+\vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
+```
 
 
 **Repositorio del proyecto:**

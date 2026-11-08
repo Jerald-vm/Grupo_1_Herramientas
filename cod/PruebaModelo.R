@@ -9,8 +9,8 @@ library(readxl)
 library(readr)
 
 # ---- Parámetros que puede ajustar -------------------------------------------
-RUTA_LLEGADAS <- "/home/felipe-pereirafallas/Documents/Herramientas de Ciencias de Datos I/Grupo_1_Herramientas/data/llegadas_costarica.xlsx"
-RUTA_VISITAS <- "/home/felipe-pereirafallas/Documents/Herramientas de Ciencias de Datos I/Grupo_1_Herramientas/data/visitas_areas_silvestres.xlsx"
+RUTA_LLEGADAS <- "data/llegadas_costarica.xlsx"
+RUTA_VISITAS <- "data/visitas_areas_silvestres.xlsx"
 H             <- 24                   # meses a pronosticar
 COVID_INI     <- yearmonth("2020 Mar")
 COVID_FIN     <- yearmonth("2022 Dec") # fin del periodo atípico (ver gráfico)

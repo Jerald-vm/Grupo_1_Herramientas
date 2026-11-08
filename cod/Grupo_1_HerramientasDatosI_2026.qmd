@@ -39,6 +39,7 @@ Sebastián Mora Rojas \quad Jerald Valverde Mora\\[0.35em]
 6 de noviembre de 2026
 \end{center}
 
+
 # Introducción
 
 Las llegadas internacionales de turistas y las visitas a áreas silvestres protegidas describen flujos distintos del turismo en Costa Rica: entradas al país y registros de uso de espacios naturales. Caracterizar cuándo aumenta o disminuye cada flujo aporta información para planificar servicios turísticos y la gestión de áreas protegidas. La comparación también tiene interés estadístico porque permite contrastar la estacionalidad y la asociación entre ambas series. Como los datos están agregados por mes, describen patrones conjuntos, pero no prueban causalidad ni identifican personas únicas detrás de cada visita.
@@ -51,54 +52,25 @@ El repositorio atribuye ambas bases al Instituto Costarricense de Turismo (ICT).
 
 Pronosticar, para los próximos 12 meses, las llegadas mensuales de turistas internacionales a Costa Rica y las visitas totales a áreas silvestres protegidas, utilizando sus series históricas y seleccionando para cada una el modelo con menor RMSE de validación.
 
-# Metodología 
-
-Para el siguiente análisis se usarán los datos consultados del Instituto Costarricense de Turismo (ICT). En este caso se utilizarán dos documentos: indicador de visitas a Áreas Silvestres Protegidas y el Anuario Estadístico de Turismo 2025, específicamente la sección de Llegadas Internacionales de Turistas 2009-2025. 
-
-Este primer documento nos brinda información sobre sobre el número de visitas de residentes  y no residentes a las Áreas Silvestres Protegidas, dando datos detallados por cada mes de los años descritos. Por otro lado, el documento de LLegadas Internacionales de Turistas 2009-2025, de la misma manera nos da información detallada por cada mes de los años señalados de las llegadas internacionales a Costa Rica, por todas las vías, incluídas, terrestre, marítima y aérea.
-
-A continuación se procede a describir el proceso metodológico de este proyecto:
+# Metodología
 
 ## Obtención y tratamiento de los datos.
 
-La recopilación de información se realizó a partir de dos documentos PDF que contienen estadísticas sobre las visitas a áreas silvestres protegidas y las llegadas de turistas a Costa Rica. Para extraer y procesar los datos se utilizó el lenguaje de programación `R`, mediante los paquetes `pdftools`, `dplyr`, `purrr`, `tidyr`, `stringr` y `writexl`.
+Se usaron dos series mensuales del Instituto Costarricense de Turismo (ICT): las llegadas internacionales de turistas por todas las vías, de 2013 a 2025 (156 observaciones; ICT, 2025b), y las visitas totales de residentes y no residentes a áreas silvestres protegidas, de 2013 a 2024 (144 observaciones; ICT, 2025a). Ambas se publican en PDF, por lo que se extrajeron en `R` con `pdftools`: `pdf_data()`. Dado a la falta de algunos valores numéricos durante la extracción, se reconstruyeron usando la relación de visitantes residentes y no residentes, con el total; asi como las llegadas de turistas de cada bloque numérico. Esta información se organizó en dos bases, juntando el año y mes con sus indicadores.
 
-En primera instancia, se utilizó la función `pdf_data()` para extraer los elementos textuales de las páginas seleccionadas, incluyendo sus coordenadas de ubicación. Posteriormente, se identificaron los registros correspondientes a cada mes y se reconstruyeron las filas de las tablas mediante la agrupación de elementos ubicados en posiciones verticales similares.
 
-Debido a que algunos valores numéricos se encontraban fragmentados durante la extracción, se desarrollaron funciones personalizadas para reconstruir las cifras originales. Para los datos de áreas silvestres protegidas, se utilizó la relación entre visitantes residentes, no residentes y el total. Para las llegadas de turistas, se concatenaron los bloques numéricos correspondientes a cada cifra, considerando la separación de miles presente en el documento.
+## Preparación de las series
 
-Finalmente, la información se organizó en dos bases de datos independientes, incorporando las variables de año y mes junto con sus respectivos indicadores. Ambas bases se exportaron a formato Excel para facilitar su posterior utilización en los procesos de exploración y análisis estadístico.
+Se usaron las series mensuales de llegadas internacionales (enero,2013 a diciembre,2025: 156 observaciones) y de visitas totales (enero,2013 a diciembre,2024: 144 observaciones). Se modelaron de forma independiente y univariante, a partir del comportamiento de su propio pasado. Antes de 2020, las series presentan una tendencia creciente, así como, una estacionalidad marcada. Los modelos se ajustaron sobre el logaritmo natural, esto porque estabiliza la varianza, vuelve aditiva a la estacionalidad proporcional y garantiza que los resultados obtenidos sean positivos. El ingenuo se ajusta en la escala original. En adelante, $y^*_t = \log(y_t)$ denota la serie transformada.
 
-## Preparación de las series para el modelado
+Hay un punto de quiebre, las series tienen una caída por la Pandemia, los meses en los que esta ocurre que incorporan sin tratamiento, para que los modelos interpreten este efecto como parte de la dinamica normal de la serie; por esto se marcaron los meses que comprendió la pandemia como faltantes (marzo-2020, Diciembre-2022), además, se estimó un ARIMA estacional con los datos restantes, mediante el filtro de Kalman, que admite observaciones faltantes. Por otra parte, los meses faltantes se reemplazan con `interpolate()`. El fin de la ventana es un criterio de juicio, en 2022 las llegadas seguían cerca del 80 % del nivel de 2019, y desde 2023 la serie parece estabilizarse en un nivel nuevo. Por eso el pronóstico describe lo esperable dada la dinámica previa y la recuperación, no un nuevo choque.
 
-Para el pronóstico se utilizaron las series mensuales de llegadas internacionales de turistas (enero de 2013 a diciembre de 2025, 156 observaciones) y de visitas totales a Áreas Silvestres Protegidas (enero de 2013 a diciembre de 2024, 144 observaciones). Cada serie se modeló de forma independiente y univariante, es decir, únicamente a partir de su propio comportamiento pasado: tendencia, estacionalidad y dependencia entre meses consecutivos. El análisis se implementó en `R` con los paquetes `fpp3` (que integra `tsibble`, `fable` y `feasts`), `readxl` y `readr`.
-
-Las series presentan una tendencia creciente previa a 2020, una estacionalidad marcada (temporada alta de diciembre a marzo y mínimos en setiembre y octubre) y un quiebre abrupto durante la pandemia de COVID-19. Estas características determinaron los dos pasos de preparación que se describen a continuación.
-
-### Transformación logarítmica
-
-Todos los modelos se ajustaron sobre el logaritmo natural de cada serie. Esta transformación convierte la estacionalidad proporcional (picos que crecen junto con el nivel de la serie) en una estacionalidad aditiva, estabiliza la varianza y garantiza pronósticos positivos al revertir la transformación. Los paquetes `fable` y `fabletools` revierten la transformación de forma automática y, por defecto, aplican un ajuste de sesgo para que el pronóstico puntual corresponda a la media de la distribución.
-
-En adelante, $y^*_t = \log(y_t)$ denota la serie transformada.
-
-### Tratamiento del periodo COVID-19
-
-Si los meses de pandemia se incorporaran sin tratamiento, los modelos interpretarían la caída como parte de la dinámica normal de la serie, lo que deprimiría la tendencia, distorsionaría la estacionalidad e inflaría los intervalos de predicción. Por esta razón:
-
-1. Se marcaron como faltantes los meses comprendidos entre marzo de 2020 y diciembre de 2022.
-2. Se ajustó un modelo ARIMA estacional con los datos restantes, estimado mediante el filtro de Kalman, que admite observaciones faltantes.
-3. Los meses faltantes se reemplazaron por la estimación de dicho modelo (función `interpolate()`).
-4. Los modelos de pronóstico se ajustaron sobre la serie así completada.
-
-La ventana inicia en marzo de 2020, primer mes con caída abrupta. Su fin en diciembre de 2022 es un criterio de juicio: en 2022 las llegadas aún se ubicaban cerca del 80 % del nivel de 2019, mientras que a partir de 2023 la serie parece haberse estabilizado en un nivel nuevo, por lo que esos datos se conservaron. Como consecuencia, el pronóstico describe lo esperable dada la dinámica previa a la pandemia y la recuperación observada, y no un nuevo choque.
-
-## Modelos de pronóstico utilizados
-
-Se ajustaron cuatro modelos sobre cada serie, a los que se agrega una referencia ingenua que no compite por ser seleccionada, sino que sirve de punto de comparación. Los tres primeros modelos parten de supuestos distintos sobre cómo se genera la serie; el cuarto los combina.
+## Modelos
+Se ajustaron cuatro modelos por serie, a los que se les agrega una referencia ingenua que no compite por ser seleccionada, los tres primeros parten de supuestos distintos, el cuarto combina:
 
 ### ETS (suavizamiento exponencial con espacio de estados)
 
-El modelo ETS descompone la serie en componentes no observables (nivel, tendencia y estacionalidad) que se actualizan mes a mes otorgando mayor peso a las observaciones recientes. En su forma aditiva con tendencia y estacionalidad (Holt-Winters), con periodo estacional $m = 12$, las ecuaciones son:
+  descompone la serie en componentes no observables (nivel, tendencia y estacionalidad) que se actualizan mes a mes, con más peso a lo reciente. Su especificación se elige por AICc. Con $m =12$ como periodo estacional, las ecuaciones son:
 
 $$
 \begin{aligned}
@@ -108,20 +80,15 @@ s_t &= \gamma\,(y^*_t - \ell_{t-1} - b_{t-1}) + (1-\gamma)\,s_{t-m} \\
 \hat{y}^*_{t+h} &= \ell_t + h\,b_t + s_{t+h-m(k+1)}
 \end{aligned}
 $$
-
-donde $\ell_t$, $b_t$ y $s_t$ son el nivel, la tendencia y el componente estacional, y $\alpha$, $\beta$ y $\gamma$ (entre 0 y 1) controlan la velocidad de adaptación de cada uno. Valores altos implican que el modelo «olvida» más rápido el pasado.
-
-La función `ETS()` evalúa las combinaciones posibles de error, tendencia (con o sin amortiguamiento) y estacionalidad, y selecciona la de menor criterio de información corregido (AICc). Dado que el ajuste se realiza en logaritmos, un componente estacional aditivo equivale a uno multiplicativo en la escala original. Este modelo se adapta bien a cambios graduales de nivel y de tendencia, como los ocurridos durante la recuperación postpandemia, y funciona de forma estable con pocas observaciones.
+Donde $\ell_t$, $b_t$ y $s_t$ son el nivel, la tendencia y el componente estacional, y $\alpha$, $\beta$ y $\gamma$ (entre 0 y 1) controlan la velocidad de adaptación de cada uno. Valores altos implican que el modelo «olvida» más rápido el pasado.
 
 ### ARIMA estacional
 
-El modelo ARIMA explica cada valor a partir de los valores y errores de meses anteriores. Se denota ARIMA$(p,d,q)(P,D,Q)_{12}$, donde $d$ y $D$ son el número de diferencias regulares y estacionales necesarias para lograr estacionariedad, $p$ y $P$ los términos autorregresivos, y $q$ y $Q$ los términos de media móvil. Con el operador de rezago $B$, el modelo se expresa como:
+Explica cada valor con valores y errores de meses anteriores. Sus órdenes se eligen con el algoritmo de Hyndman y Khandakar (2008). Se denota ARIMA$(p,d,q)(P,D,Q)_{12}$, donde $d$ y $D$ son el número de diferencias regulares y estacionales necesarias para lograr estacionariedad, $p$ y $P$ los términos autorregresivos, y $q$ y $Q$ los términos de media móvil. Con el operador de rezago $B$, el modelo se expresa como:
 
 $$
 \phi(B)\,\Phi(B^{12})\,(1-B)^d\,(1-B^{12})^D\,y^*_t = c + \theta(B)\,\Theta(B^{12})\,\varepsilon_t
 $$
-
-La función `ARIMA()` aplica el algoritmo de Hyndman y Khandakar (2008): determina $d$ y $D$ mediante pruebas de raíz unitaria (KPSS y OCSB) y busca los demás órdenes con una búsqueda por pasos que minimiza el AICc. Es el enfoque estándar para series mensuales con estacionalidad y captura la inercia de corto plazo, de forma complementaria a ETS.
 
 ### Regresión con tendencia y estacionalidad (TSLM)
 
@@ -131,7 +98,7 @@ $$
 y^*_t = \beta_0 + \beta_1\,t + \sum_{j=2}^{12}\gamma_j\,D_{j,t} + \varepsilon_t
 $$
 
-donde $t$ es el índice de tiempo y $D_{j,t}$ indica si la observación corresponde al mes $j$ (enero es la categoría de referencia). En logaritmos, la pendiente $\beta_1$ equivale a un crecimiento porcentual constante. Es el modelo más simple y transparente, con estacionalidad fija y tendencia rígida, por lo que sirve como referencia estable. Su limitación es que supone errores independientes; si los residuos presentan autocorrelación, sus intervalos de predicción resultan demasiado estrechos.
+donde $t$ es el índice de tiempo y $D_{j,t}$ indica si la observación corresponde al mes $j$ (enero es la categoría de referencia). En logaritmos, la pendiente $\beta_1$ equivale a un crecimiento porcentual constante. 
 
 ### Combinación de modelos
 
@@ -141,8 +108,6 @@ $$
 \hat{y}^{\,comb}_{t+h} = \tfrac{1}{3}\left(\hat{y}^{ETS}_{t+h} + \hat{y}^{ARIMA}_{t+h} + \hat{y}^{TSLM}_{t+h}\right)
 $$
 
-La literatura de pronósticos señala que promediar modelos con estructuras distintas suele reducir el error frente al modelo individual promedio y protege contra la elección de un modelo inadecuado, ya que sus errores tienden a compensarse parcialmente (Bates y Granger, 1969; Clemen, 1989). El promedio simple es difícil de superar con ponderaciones estimadas, especialmente en muestras cortas.
-
 ### Referencia ingenua estacional
 
 Como punto de comparación se incluye el método ingenuo estacional, que pronostica para cada mes el valor observado en ese mismo mes del año anterior:
@@ -151,31 +116,20 @@ $$
 \hat{y}_{t+h} = y_{t+h-m\,(k+1)}, \qquad m = 12
 $$
 
-donde $k$ es el número de años completos contenidos en el horizonte $h$. No estima parámetros ni supone una forma funcional: simplemente repite el último ciclo anual observado.
+donde $k$ es el número de años completos contenidos en el horizonte $h$. No estima parámetros ni supone una forma funcional: simplemente repite el último ciclo anual observado. Fija el umbral mínimo de desempeño,  Hyndman y Athanasopoulos (2021) recomiendan reportar siempre al menos un método de referencia de este tipo, ya que una métrica de error carece de interpretación sin un punto de comparación. Por esta razón el método ingenuo se ajusta y evalúa en las mismas condiciones que los demás, pero se excluye de la selección.
 
-Su función aquí no es pronosticar, sino fijar el umbral mínimo de desempeño. En series con estacionalidad muy marcada este método resulta sorprendentemente competitivo, de modo que un modelo estadístico solo demuestra aportar valor si logra un error menor. Hyndman y Athanasopoulos (2021) recomiendan reportar siempre al menos un método de referencia de este tipo, ya que una métrica de error carece de interpretación sin un punto de comparación. Por esta razón el método ingenuo se ajusta y evalúa en las mismas condiciones que los demás, pero se excluye de la selección.
 
-## Selección del mejor modelo
+## Validación y selección
 
-La selección opera en dos niveles distintos:
-
-- **Dentro de cada familia de modelos**, las funciones `ETS()` y `ARIMA()` eligen automáticamente su especificación (componentes de ETS; órdenes $p$, $d$, $q$, $P$, $D$, $Q$ de ARIMA) mediante el AICc, que equilibra el ajuste a los datos con la complejidad del modelo.
-- **Entre las cuatro alternativas** (ETS, ARIMA, TSLM y combinado), la elección se basa en el error de pronóstico sobre datos que el modelo no utilizó para ajustarse (validación por conjunto de prueba). La referencia ingenua se evalúa en el mismo ejercicio, pero queda fuera de la selección: su papel es verificar que el modelo elegido aporte algo más que repetir el año anterior.
-
-El procedimiento de validación consistió en:
-
-1. Reservar los últimos 24 meses de cada serie como conjunto de prueba: 2024 y 2025 para las llegadas, y 2023 y 2024 para las visitas a áreas silvestres. Estos periodos quedan fuera de la ventana COVID, por lo que se evalúan contra datos observados y no interpolados.
-2. Ajustar los cuatro modelos con los datos anteriores al conjunto de prueba.
-3. Pronosticar los 24 meses reservados y calcular los errores $e_t = y_t - \hat{y}_t$ respecto de los valores reales.
-4. Resumir los errores con tres métricas:
-
+En los últimos 24 meses, en cada serie se reservan como conjunto de prueba las llegadas en 2024-2025 t 2023-2024 en visitas, dejando por fuera el COVID. Los modelos se ajustan con los datos anteriores; además, se pronostican esos 24 meses y se calcula cada error correspondiente $e_t = y_t - \hat{y}_t$:
 $$
 \text{RMSE} = \sqrt{\tfrac{1}{n}\sum e_t^2}, \qquad
 \text{MAE} = \tfrac{1}{n}\sum |e_t|, \qquad
 \text{MAPE} = \tfrac{100}{n}\sum \left|\tfrac{e_t}{y_t}\right|
 $$
 
-El **criterio de selección es el menor RMSE**, ya que penaliza con mayor severidad los errores grandes, que son los más costosos al planificar. El MAE y el MAPE se reportan de forma complementaria: el primero está expresado en las mismas unidades de la serie y el segundo permite una lectura relativa. Los tres indicadores se calculan también para la referencia ingenua, de manera que el desempeño del modelo seleccionado pueda interpretarse en términos relativos y no en abstracto. Una vez elegido el modelo, se reajustó con la serie completa y se generaron los pronósticos futuros con intervalos de predicción del 95 %.
+Se considera como criterio de seleccion el menor `RSME` entre los cuatro modelos, esto porque entre más alto el error, más lo penaliza. Por otra parte, MAE y MAPE se usan como complemento para finiquitar esta consideración. El ingenuo se evalúa de la misma manera pero no se considera en la seleción, continuando, el modelo elegido se reajustó con la serie completa y se genera el pronóstico de 12 meses con intervalos de predicción del 95%.
+
 
 ```{r}
 #| label: calculo
@@ -413,7 +367,7 @@ f2 <- function(x) sprintf("%.2f", x)
 #| label: fig-series
 #| fig-cap: "Llegadas internacionales de turistas y visitas totales a áreas silvestres protegidas, datos mensuales. La franja gris marca el periodo tratado como atípico (marzo 2020 a diciembre 2022)."
 #| fig-width: 7
-#| fig-height: 3.6
+#| fig-height: 2.5
 
 bind_rows(
   llegadas |> as_tibble() |> mutate(serie = "Llegadas internacionales"),
@@ -449,7 +403,7 @@ tendencia hacia abajo que no corresponde.
 #| label: fig-estacional
 #| fig-cap: "Índice estacional antes y después de la pandemia. El valor 100 equivale a un mes promedio de su propio año."
 #| fig-width: 7
-#| fig-height: 3.2
+#| fig-height: 2.5
 
 bind_rows(
   ie_ll_pre  |> mutate(serie = "Llegadas",         periodo = "Antes de 2020"),

@@ -70,35 +70,21 @@ Se ajustaron cuatro modelos por serie, a los que se les agrega una referencia in
 
 ### ETS (suavizamiento exponencial con espacio de estados)
 
-  descompone la serie en componentes no observables (nivel, tendencia y estacionalidad) que se actualizan mes a mes, con más peso a lo reciente. Su especificación se elige por AICc. Con $m =12$ como periodo estacional, las ecuaciones son:
-
-$$
-\begin{aligned}
-\ell_t &= \alpha\,(y^*_t - s_{t-m}) + (1-\alpha)(\ell_{t-1} + b_{t-1}) \\
-b_t &= \beta\,(\ell_t - \ell_{t-1}) + (1-\beta)\,b_{t-1} \\
-s_t &= \gamma\,(y^*_t - \ell_{t-1} - b_{t-1}) + (1-\gamma)\,s_{t-m} \\
-\hat{y}^*_{t+h} &= \ell_t + h\,b_t + s_{t+h-m(k+1)}
-\end{aligned}
-$$
-Donde $\ell_t$, $b_t$ y $s_t$ son el nivel, la tendencia y el componente estacional, y $\alpha$, $\beta$ y $\gamma$ (entre 0 y 1) controlan la velocidad de adaptación de cada uno. Valores altos implican que el modelo «olvida» más rápido el pasado.
-
+  descompone la serie en componentes no observables (nivel, tendencia y estacionalidad) que se actualizan mes a mes, con más peso a lo reciente. Su especificación se elige por AICc. Con $m =12$ como periodo estacional. 
+  
 ### ARIMA estacional
 
-Explica cada valor con valores y errores de meses anteriores. Sus órdenes se eligen con el algoritmo de Hyndman y Khandakar (2008). Se denota ARIMA$(p,d,q)(P,D,Q)_{12}$, donde $d$ y $D$ son el número de diferencias regulares y estacionales necesarias para lograr estacionariedad, $p$ y $P$ los términos autorregresivos, y $q$ y $Q$ los términos de media móvil. Con el operador de rezago $B$, el modelo se expresa como:
-
-$$
-\phi(B)\,\Phi(B^{12})\,(1-B)^d\,(1-B^{12})^D\,y^*_t = c + \theta(B)\,\Theta(B^{12})\,\varepsilon_t
-$$
+Explica cada valor con valores y errores de meses anteriores. Sus órdenes se eligen con el algoritmo de Hyndman y Khandakar (2008). 
 
 ### Regresión con tendencia y estacionalidad (TSLM)
 
-El modelo de regresión lineal ajusta una tendencia lineal en el tiempo más variables indicadoras de mes:
+El modelo de regresión lineal ajusta una tendencia lineal en el tiempo más variables indicadoras de mes, donde $t$ es el índice de tiempo y $D_{j,t}$ indica si la observación corresponde al mes $j$ (enero es la categoría de referencia). En logaritmos, la pendiente $\beta_1$ equivale a un crecimiento porcentual constante. 
 
 $$
 y^*_t = \beta_0 + \beta_1\,t + \sum_{j=2}^{12}\gamma_j\,D_{j,t} + \varepsilon_t
 $$
 
-donde $t$ es el índice de tiempo y $D_{j,t}$ indica si la observación corresponde al mes $j$ (enero es la categoría de referencia). En logaritmos, la pendiente $\beta_1$ equivale a un crecimiento porcentual constante. 
+
 
 ### Combinación de modelos
 
@@ -439,16 +425,7 @@ La implicación para el objetivo es directa: si la estacionalidad explica tanto 
 cualquier modelo que la capture bien ya va a acertar bastante. Eso sube la vara de lo que
 significa un buen pronóstico, y por eso más adelante se compara contra una referencia simple.
 
-```{r}
-#| label: tbl-estacional
-#| tbl-cap: "Índice estacional de las llegadas internacionales antes y después de la pandemia."
 
-ie_ll_pre |>
-  transmute(Mes = ORDEN[m], `2013-2019` = round(indice, 1)) |>
-  bind_cols(`2023-2025` = round(ie_ll_post$indice, 1)) |>
-  mutate(Diferencia = `2023-2025` - `2013-2019`) |>
-  kable(align = c("l", "r", "r", "r"))
-```
 
 ```{=latex}
 \vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia con datos del Instituto Costarricense de Turismo.}
@@ -654,17 +631,7 @@ res_ll$fc |>
 \vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
 ```
 
-```{r}
-#| label: tbl-pron-llegadas
-#| tbl-cap: "Pronóstico mensual de llegadas internacionales con intervalo de predicción de 95 %."
 
-p_ll |>
-  transmute(Mes = as.character(fecha),
-            Pronóstico = f0(pronostico),
-            `Límite inferior` = f0(inf),
-            `Límite superior` = f0(sup)) |>
-  kable(align = c("l", "r", "r", "r"))
-```
 
 ```{=latex}
 \vspace{-0.9em}\noindent{\footnotesize Fuente: elaboración propia.}
@@ -747,6 +714,8 @@ de magnitud y poco más, y conviene presentarlo siempre acompañado de su rango.
    de la pandemia y marcarlos con una variable indicadora, siguiendo a Box y Tiao (1975),
    evitaría introducir valores estimados en el entrenamiento. Es la mejora más clara que se
    identifica para una versión posterior de este trabajo.
+   
+\newpage
 
 # Bibliografía
 
@@ -782,9 +751,34 @@ Instituto Costarricense de Turismo. (2025). *Indicador de visitas a las áreas s
 protegidas*. Elaborado con datos de la Gerencia de Áreas Silvestres Protegidas del SINAC.
 https://www.ict.go.cr/es/estadisticas.html
 
+\newpage
+
 # Anexos
 
+```{r}
+#| label: tbl-estacional
+#| tbl-cap: "Índice estacional de las llegadas internacionales antes y después de la pandemia."
+
+ie_ll_pre |>
+  transmute(Mes = ORDEN[m], `2013-2019` = round(indice, 1)) |>
+  bind_cols(`2023-2025` = round(ie_ll_post$indice, 1)) |>
+  mutate(Diferencia = `2023-2025` - `2013-2019`) |>
+  kable(align = c("l", "r", "r", "r"))
+```
+
+```{r}
+#| label: tbl-pron-llegadas
+#| tbl-cap: "Pronóstico mensual de llegadas internacionales con intervalo de predicción de 95 %."
+
+p_ll |>
+  transmute(Mes = as.character(fecha),
+            Pronóstico = f0(pronostico),
+            `Límite inferior` = f0(inf),
+            `Límite superior` = f0(sup)) |>
+  kable(align = c("l", "r", "r", "r"))
+```
+
+
+
 **Repositorio del proyecto:**
-
-> `[PEGAR AQUÍ EL ENLACE DEL REPOSITORIO]`
-
+[github.com/Jerald-vm/Grupo_1_Herramientas](https://github.com/Jerald-vm/Grupo_1_Herramientas)
